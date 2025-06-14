@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 import asyncio
 from pathlib import Path
 import shutil
@@ -101,22 +100,20 @@ try:
 except FileNotFoundError:
     pass
 
-executor = ThreadPoolExecutor()
-
 def _write_cache(filename, data):
     with open(filename, "w") as f:
         json.dump(data, f)
 
 async def write_DNS_cache():
     await asyncio.get_running_loop().run_in_executor(
-        executor,
+        None,
         _write_cache,
         'DNS_cache.json', DNS_cache
     )
 
 async def write_TTL_cache():
     await asyncio.get_running_loop().run_in_executor(
-        executor,
+        None,
         _write_cache,
         'TTL_cache.json', TTL_cache
     )
