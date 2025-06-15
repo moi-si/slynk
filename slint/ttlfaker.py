@@ -1,1 +1,1 @@
-'''FAKEdesync is not supported yet.'''
+'''Not supported yet.'''

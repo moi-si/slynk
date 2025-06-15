@@ -56,20 +56,10 @@ with open("config.json", "rb") as f:
     _CONFIG = json.load(f)
 
 CONFIG = {**_CONFIG, **CONFIG}
-default_policy = {
-    "num_tls_pieces": CONFIG["num_tls_pieces"],
-    "num_tcp_pieces": CONFIG["num_tcp_pieces"],
-    "len_tcp_sni": CONFIG["len_tcp_sni"],
-    "len_tls_sni": CONFIG["len_tls_sni"],
-    "mode": CONFIG["mode"],
-    "fake_packet": CONFIG["fake_packet"].encode(encoding="UTF-8"),
-    "fake_ttl": CONFIG["fake_ttl"],
-    "fake_sleep": CONFIG["fake_sleep"],
-    "send_interval": CONFIG["send_interval"],
-    "DNS_cache": CONFIG["DNS_cache"],
-    "TTL_cache": CONFIG["TTL_cache"],
-    "safety_check": CONFIG["safety_check"],
-}
+default_policy = CONFIG['default_policy']
+fake_packet = default_policy.get('fake_packet')
+if fake_packet:
+    default_policy['fake_packet'] = fake_packet.encode(encoding='UTF-8')
 
 domain_policies = ahocorasick.AhoCorasick(*CONFIG["domains"].keys())
 ipv4_map = Trie()

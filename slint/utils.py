@@ -49,7 +49,7 @@ def check_ttl(ip, port, ttl):
         sock.close()
         return True
     except Exception as e:
-        logger.warning('check_ttl error: %s', repr(e))
+        logger.error('Failed to check TTL for %s:%d due to %s', ip, port, repr(e))
         return False
     finally:
         sock.close()
@@ -71,7 +71,7 @@ def get_ttl(ip, port):
         else:
             l = mid + 1
 
-    logger.info("get_ttl %s:%d result=%d", ip, port, ans)
+    logger.info("TTL for %s:%d is %d.", ip, port, ans)
     return ans
 '''
 

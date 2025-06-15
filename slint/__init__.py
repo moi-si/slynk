@@ -1,19 +1,22 @@
 __version__ = '0.0.1'
 
 import asyncio
+import sys
+if sys.platform == 'win32':
+     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from .config import CONFIG
 from .logger_with_context import logger, client_port, domain_policy, remote_host
 from .remote import get_connection
 from . import fragmenter
-from . import ttlfaker
+# from . import ttlfaker
 from . import utils
 
 async def upstream(reader, remote_writer, policy):
     try:
         data = await reader.read(16384)
         if data == b'':
-            raise ConnectionError('Client closed connection at first')
+            raise ConnectionError('Client closed connection at first.')
         sni = utils.extract_sni(data)
         if sni is None:
             remote_writer.write(data)
@@ -24,7 +27,7 @@ async def upstream(reader, remote_writer, policy):
                 await fragmenter.send_chunks(remote_writer, data, sni)
             elif mode == 'FAKEdesync':
                 # await ttlfaker.send_after_faking(remote_writer, data)
-                raise NotImplementedError("FAKEdesync is not yet implemented.")
+                raise NotImplementedError("FAKEdesync is not supported yet.")
             elif mode == 'DIRECT':
                 remote_writer.write(data)
                 await remote_writer.drain()
@@ -37,7 +40,7 @@ async def upstream(reader, remote_writer, policy):
             remote_writer.write(data)
             await remote_writer.drain()
     except Exception as e:
-        logger.warning('Upstream from %s: %s', remote_host.get(), repr(e))
+        logger.info('Upstream from %s: %s', remote_host.get(), repr(e))
 
 async def downstream(remote_reader, writer, policy):
     try:
@@ -55,7 +58,7 @@ async def downstream(remote_reader, writer, policy):
             writer.write(data)
             await writer.drain()
     except Exception as e:
-        logger.warning('Downstream from %s: %s', remote_host.get(), repr(e))
+        logger.info('Downstream from %s: %s', remote_host.get(), repr(e))
 
 async def handler(reader, writer):
     remote_writer = None
@@ -72,7 +75,7 @@ async def handler(reader, writer):
             try:
                 remote_reader, remote_writer = await get_connection(r_host, int(r_port))
             except Exception:
-                logger.error(f'Failed to connect to {r_host}:{r_port}')
+                logger.error(f'Failed to connect to {r_host}:{r_port}.')
                 writer.write(b'HTTP/1.1 502 Bad Gateway\r\n\r\n')
                 await writer.drain()
                 raise

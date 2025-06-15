@@ -7,19 +7,19 @@ import dns.rdatatype
 from .logger_with_context import logger
 logger = logger.getChild('dns_resolver')
 
-async def resolve(domain, qtype, doh_url, proxy=None):
-    params = {
-        'type': qtype,
-        'ct': 'application/dns-message'
-    }
-    headers = {'Accept': 'application/dns-message'}
+async def resolve(domain, qtype, dns_url, proxy=None):
     logger.info('DNS Resolving %s', domain)
 
     try:
+        params = {
+            'type': qtype,
+            'ct': 'application/dns-message'
+        }
+        headers = {'Accept': 'application/dns-message'}
         query_message = dns.message.make_query(domain, qtype)
         query_wire = query_message.to_wire()
         query_b64 = base64.urlsafe_b64encode(query_wire).decode('utf-8').rstrip('=')
-        query_url = f'{doh_url}?dns={query_b64}'
+        query_url = f'{dns_url}?dns={query_b64}'
 
         async with aiohttp.ClientSession() as session:
             async with session.get(

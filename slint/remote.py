@@ -19,7 +19,7 @@ from .config import (
 from .dns_resolver import resolve
 
 if CONFIG.get('DoH_server'):
-    doh_url = CONFIG['DoH_server']
+    doh_url = CONFIG['DNS_URL']
 else:
     doh_url = 'https://cloudflare-dns.com/dns-query'
 proxy = f"http://127.0.0.1:{CONFIG['port']}"
@@ -78,8 +78,8 @@ async def get_connection(host, port, protocol=6):
             except Exception:
                 ip = await resolve(host, 'AAAA', doh_url, proxy)
         if ip is None:
-            raise RuntimeError(f'Failed to resolve {host}')
-        else:
+            raise RuntimeError(f'Failed to resolve {host}.')
+        elif policy.get('DNS_cache'):
             global cnt_upd_DNS_cache
             async with lock_DNS_cache:
                 DNS_cache[host] = ip
@@ -95,7 +95,7 @@ async def get_connection(host, port, protocol=6):
         if TTL_cache.get(ip):
             val = await utils.get_ttl(ip, port)
             if val == -1:
-                raise RuntimeError('Failed to get TTL')
+                raise RuntimeError(f'Failed to get TTL for {ip}:{port}.')
             global cnt_upd_TTL_cache
             async with lock_TTL_cache:
                 TTL_cache[self.address] = val
@@ -104,10 +104,10 @@ async def get_connection(host, port, protocol=6):
                     cnt_upd_TTL_cache = 0
                     await write_TTL_cache()
             policy["fake_ttl"] = val - 1
-            logger.info('Fake TTL for %s is %d.', ip, policy["fake_ttl"])
+            logger.info('TTL cache for %s to %d.', ip, policy["fake_ttl"])
         else:
             policy["fake_ttl"] = TTL_cache[self.address] - 1
-            logger.info("Fake TTL for %s is %d", ip, policy['fake_ttl'])
+            logger.info("TTL cache for %s is %d", ip, policy['fake_ttl'])
 
     logger.info('%s --> %s', host, policy)
     if protocol == 6:
