@@ -26,3 +26,4 @@ A local relay based on `asyncio`.
 - [ ] UDP
 - [ ] Local DNS
 - [ ] BySNIfirst
+- [ ] PAC
