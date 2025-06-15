@@ -2,8 +2,6 @@ __version__ = '0.0.1'
 
 import asyncio
 import sys
-if sys.platform == 'win32':
-     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from .config import CONFIG
 from .logger_with_context import logger, client_port, domain_policy, remote_host
