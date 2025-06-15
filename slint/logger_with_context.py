@@ -14,7 +14,7 @@ class CustomLogRecord(logging.LogRecord):
         self.c_port = client_port.get()
 
 logging.basicConfig(
-    format="%(asctime)s %(levelname)-8s %(name)s: [%(c_port)s] %(message)s",
+    format="%(asctime)s [%(c_port)s] %(levelname)-8s %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logging.setLogRecordFactory(CustomLogRecord)
