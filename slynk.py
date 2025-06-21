@@ -1,6 +1,6 @@
 import asyncio
 
-from slint import main
+from slynk import main
 
 if __name__ == '__main__':
     asyncio.run(main())
