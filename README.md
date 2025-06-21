@@ -14,7 +14,7 @@ A local relay based on `asyncio`.
    ```
    pip install -r requirements.txt
    ```
-4. Run `slint.py` to start the relay:
+4. Run `slynk.py` to start the relay:
 
    ```
    python slynk.py
