@@ -1,8 +1,6 @@
 {
     "loglevel": "INFO",
     "port": 3500,
-    "fake_ttl": "query",
-    "fake_sleep": 0.2,
     "my_socket_timeout": 120,
     "FAKE_ttl_auto_timeout": 5,
     "DNS_URL": "https://cloudflare-dns.com/dns-query",
@@ -21,7 +19,7 @@
         "fake_sleep": 0.2,
         "send_interval": 0.01,
         "DNS_cache": true,
-        "TTL_cache": true,
+        "TTL_cache": true
     },
     "IPredirect": {
         "104.16.0.0/13": "104.21.57.162",
@@ -162,10 +160,10 @@
             "len_tcp_sni": 5
         },
         "github.io": {
-            "IP": "151.101.21.147"
+            "IP": "146.75.48.133"
         },
         "githubusercontent.com": {
-            "IP": "151.101.24.133"
+            "IP": "146.75.48.133"
         },
         "objects-origin.githubusercontent.com": {
             "IP": "140.82.113.22"
@@ -210,12 +208,12 @@
             "len_tls_sni": 3
         },
         "chrome.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "chromium.org": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
@@ -225,43 +223,48 @@
             "safety_check": true
         },
         "deepmind.google": {},
+        "goo.gl": {
+            "IP": "35.190.247.150",
+            "port": 1445,
+            "safety_check": true
+        },
         "google.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "ai.dev": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "google.dev": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "android.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "golang.org": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "blogger.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "gvt1.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "googlevideo.com": {
-            "IPv6": true
+            "IPv6_first": true
         },
         "googleusercontent.com": {
             "IP": "4.193.121.119",
@@ -276,32 +279,32 @@
             "port": 41620
         },
         "gstatic.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "googleapis.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "youtube.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "youtube-nocookie.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "youtu.be": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
         "ytimg.com": {
-            "IP": "35.190.247.145",
+            "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
@@ -327,7 +330,7 @@
             "len_tcp_sni": 5
         },
         "fbcdn.net": {
-            "IPv6": true
+            "IPv6_first": true
         },
         "fbsbx.com": {
             "IP": "2a03:2880:f115:83:face:b00c:0:25de",
@@ -356,7 +359,7 @@
         },
         "medium": {},
         "cdn-telegram.org": {
-            "IPv6": "ipv4"
+            "IPv6_first": "ipv4"
         },
         "zws5.web.telegram.org": {
             "IP": "149.154.170.200"
