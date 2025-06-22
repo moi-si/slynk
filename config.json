@@ -1,7 +1,7 @@
 {
     "loglevel": "INFO",
     "port": 3500,
-    "my_socket_timeout": 120,
+    "proxy_type": "http",
     "FAKE_ttl_auto_timeout": 5,
     "DNS_URL": "https://cloudflare-dns.com/dns-query",
     "DNS_cache_update_interval": 2,
