@@ -7,7 +7,7 @@ from .logger_with_context import logger, client_port, domain_policy, remote_host
 from .remote import get_connection
 from . import fragmenter
 from . import dns_resolver
-# from . import fakedesync
+from . import fake_desync
 from . import utils
 
 async def upstream(reader, remote_writer, policy):
