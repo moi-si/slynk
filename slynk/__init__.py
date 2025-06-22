@@ -14,7 +14,14 @@ async def upstream(reader, remote_writer, policy):
     try:
         data = await reader.read(16384)
         if data == b'':
-            raise ConnectionError('Client closed connection at first packet.')
+            logger.info(
+                'Client closed connection to %s immediately.', remote_host.get()
+            )
+            return
+        if policy.get('safety_check') and (
+            has_key_share := utils.check_key_share(data)
+            ) != 1:
+            raise RuntimeError('Not a TLS 1.3 connection', has_key_share)
         sni = utils.extract_sni(data)
         if sni is None:
             remote_writer.write(data)
@@ -34,7 +41,7 @@ async def upstream(reader, remote_writer, policy):
         while True:
             data = await reader.read(16384)
             if data == b'':
-                logger.debug('Client closed connection to %s.', remote_host.get())
+                logger.info('Client closed connection to %s.', remote_host.get())
                 return
             remote_writer.write(data)
             await remote_writer.drain()
@@ -45,15 +52,19 @@ async def downstream(remote_reader, writer, policy):
     try:
         data = await remote_reader.read(16384)
         if data == b'':
-            raise ConnectionError('Remote server closed connection at first packet.')
-        if policy.get('safety_check') and utils.detect_tls_version_by_keyshare(data) == -1:
-            raise RuntimeError('Not a TLS 1.3 connection')
+            logger.info(
+                'Remote server %s closed connection to immediately.',
+                remote_host.get()
+            )
+            return
         writer.write(data)
         await writer.drain()
         while True:
             data = await remote_reader.read(16384)
             if data == b'':
-                logger.debug('Remote server %s closed connection.', remote_host.get())
+                logger.info(
+                    'Remote server %s closed connection.', remote_host.get()
+                )
                 return
             writer.write(data)
             await writer.drain()
