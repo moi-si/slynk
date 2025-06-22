@@ -16,13 +16,6 @@ from .config import (
     write_DNS_cache,
     write_TTL_cache
 )
-from .dns_resolver import resolve
-
-if CONFIG.get('DoH_server'):
-    doh_url = CONFIG['DNS_URL']
-else:
-    doh_url = 'https://cloudflare-dns.com/dns-query'
-proxy = f"http://127.0.0.1:{CONFIG['port']}"
 
 logger = logger.getChild('remote')
 cnt_upd_TTL_cache = 0
@@ -54,6 +47,7 @@ def match_domain(domain):
         return {}
 
 async def get_connection(host, port, protocol=6):
+    from . import DNSResolver
     policy = {**default_policy, **match_domain(host)}
     domain_policy.set(policy)
     policy.setdefault('port', 443)
@@ -69,14 +63,14 @@ async def get_connection(host, port, protocol=6):
     else:
         if policy.get('IPv6_first'):
             try:
-                ip = await resolve(host, 'AAAA', doh_url, proxy)
+                ip = await DNSResolver.resolve(host, 'AAAA')
             except Exception:
-                ip = await resolve(host, 'A', doh_url, proxy)
+                ip = await DNSResolver.resolve(host, 'A')
         else:
             try:
-                ip = await resolve(host, 'A', doh_url, proxy)
+                ip = await DNSResolver.resolve(host, 'A')
             except Exception:
-                ip = await resolve(host, 'AAAA', doh_url, proxy)
+                ip = await DNSResolver.resolve(host, 'AAAA')
         if ip is None:
             raise RuntimeError(f'Failed to resolve {host}.')
         elif policy.get('DNS_cache'):

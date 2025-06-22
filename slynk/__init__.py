@@ -1,12 +1,12 @@
 __version__ = '0.0.1'
 
 import asyncio
-import sys
 
 from .config import CONFIG
 from .logger_with_context import logger, client_port, domain_policy, remote_host
 from .remote import get_connection
 from . import fragmenter
+from . import dns_resolver
 # from . import ttlfaker
 from . import utils
 
@@ -113,15 +113,23 @@ async def handler(reader, writer):
         await asyncio.gather(*tasks_to_close, return_exceptions=True)
 
 async def main():
+    global DNSResolver
+    DNSResolver = dns_resolver.Resolver(
+        CONFIG['DNS_URL'], f"http://127.0.0.1:{CONFIG['port']}"
+    )
+    await DNSResolver.create_session()
+
     print(f'Slynk v{__version__} - local relay')
     server = await asyncio.start_server(
         handler, '127.0.0.1', CONFIG['port']
     )
     print(f"Ready at 127.0.0.1:{CONFIG['port']}")
+
     try:
         async with server:
             await server.serve_forever()
     except KeyboardInterrupt:
         print('\nShutting down...')
     finally:
-        print('\nExited')
+        await DNSResolver.close_session()
+        print('\nExited.')
