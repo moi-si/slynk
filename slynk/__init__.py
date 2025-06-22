@@ -7,14 +7,14 @@ from .logger_with_context import logger, client_port, domain_policy, remote_host
 from .remote import get_connection
 from . import fragmenter
 from . import dns_resolver
-# from . import ttlfaker
+# from . import fakedesync
 from . import utils
 
 async def upstream(reader, remote_writer, policy):
     try:
         data = await reader.read(16384)
         if data == b'':
-            raise ConnectionError('Client closed connection at first.')
+            raise ConnectionError('Client closed connection at first packet.')
         sni = utils.extract_sni(data)
         if sni is None:
             remote_writer.write(data)
@@ -34,17 +34,18 @@ async def upstream(reader, remote_writer, policy):
         while True:
             data = await reader.read(16384)
             if data == b'':
-                raise ConnectionError('Client closed connection.')
+                logger.debug('Client closed connection to %s.', remote_host.get())
+                return
             remote_writer.write(data)
             await remote_writer.drain()
     except Exception as e:
-        logger.info('Upstream from %s: %s', remote_host.get(), repr(e))
+        logger.error('Upstream from %s: %s', remote_host.get(), repr(e))
 
 async def downstream(remote_reader, writer, policy):
     try:
         data = await remote_reader.read(16384)
         if data == b'':
-            raise ConnectionError('Remote host closed connection at first.')
+            raise ConnectionError('Remote server closed connection at first packet.')
         if policy.get('safety_check') and utils.detect_tls_version_by_keyshare(data) == -1:
             raise RuntimeError('Not a TLS 1.3 connection')
         writer.write(data)
@@ -52,11 +53,12 @@ async def downstream(remote_reader, writer, policy):
         while True:
             data = await remote_reader.read(16384)
             if data == b'':
-                raise ConnectionError('Remote host closed connection.')
+                logger.debug('Remote server %s closed connection.', remote_host.get())
+                return
             writer.write(data)
             await writer.drain()
     except Exception as e:
-        logger.info('Downstream from %s: %s', remote_host.get(), repr(e))
+        logger.error('Downstream from %s: %s', remote_host.get(), repr(e))
 
 async def http_handler(reader, writer):
     remote_writer = None

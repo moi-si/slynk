@@ -94,8 +94,8 @@ async def send_chunks(writer, data, sni):
             logger.debug('Added chunk: of %d bytes.', len(tmp))
             logger.debug('Added chunk: %s', tmp)
 
-        logger.info('TLS splited: %d Bytes.', len(tcp_data))
-        logger.debug('TLS splited: %s', repr(tcp_data))
+        logger.info('TLS chunked: %d bytes.', len(tcp_data))
+        logger.debug('TLS chunked: %s', repr(tcp_data))
 
         lenl = 0
         for i in range(l):
