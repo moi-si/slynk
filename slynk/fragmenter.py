@@ -69,8 +69,7 @@ def fragment_pattern(data, pattern, len_sni: int, num_pieces: int):
 async def send_chunks(writer, data, sni):
     '''Send fragmentted data'''
     try:
-        sock = writer.get_extra_info('socket')
-        if sock is None:
+        if (sock := writer.get_extra_info('socket')) is None:
             raise RuntimeError('Failed to get socket of writer.')
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         policy = domain_policy.get()
@@ -108,7 +107,7 @@ async def send_chunks(writer, data, sni):
             tcp_data,
             tcp_data[lenl:lenr],
             policy["len_tcp_sni"],
-            policy["num_tcp_pieces"],
+            policy["num_tcp_pieces"]
         )
 
         for packet in splited_tcp_data:
@@ -122,8 +121,7 @@ async def send_chunks(writer, data, sni):
             logger.debug("TCP sent: %s", repr(packet))
             await asyncio.sleep(policy["send_interval"])
 
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
+
     except Exception as e:
         logger.error('Failed to send chunks due to %s', repr(e))
-    finally:
-        if sock:
-            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)

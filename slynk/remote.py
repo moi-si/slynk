@@ -80,28 +80,28 @@ async def get_connection(host, port, protocol=6):
                 cnt_upd_DNS_cache += 1
                 if cnt_upd_DNS_cache >= CONFIG["DNS_cache_update_interval"]:
                     cnt_upd_DNS_cache = 0
-                    await write_DNS_cache()
+                    await utils.to_thread(write_DNS_cache)
             logger.info('DNS cache for %s to %s.', host, ip)
     ip = redirect(ip)
 
     if policy.get('fake_ttl') == 'query' and policy["mode"] == "FAKEdesync":
         logger.info('Fake TTL for %s is query.', ip)
         if TTL_cache.get(ip):
-            val = await utils.get_ttl(ip, port)
+            policy["fake_ttl"] = TTL_cache[ip] - 1
+            logger.info("TTL cache for %s is %d.", ip, policy['fake_ttl'])
+        else:
+            val = await utils.to_thread(utils.get_ttl, ip, port)
             if val == -1:
                 raise RuntimeError(f'Failed to get TTL for {ip}:{port}.')
             global cnt_upd_TTL_cache
             async with lock_TTL_cache:
-                TTL_cache[self.address] = val
+                TTL_cache[ip] = val
                 cnt_upd_TTL_cache += 1
                 if cnt_upd_TTL_cache >= CONFIG["TTL_cache_update_interval"]:
                     cnt_upd_TTL_cache = 0
-                    await write_TTL_cache()
+                    await utils.to_thread(write_TTL_cache)
             policy["fake_ttl"] = val - 1
             logger.info('TTL cache for %s to %d.', ip, policy["fake_ttl"])
-        else:
-            policy["fake_ttl"] = TTL_cache[self.address] - 1
-            logger.info("TTL cache for %s is %d.", ip, policy['fake_ttl'])
 
     logger.info('%s --> %s', host, policy)
     if protocol == 6:

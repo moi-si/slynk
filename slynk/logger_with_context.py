@@ -18,5 +18,5 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logging.setLogRecordFactory(CustomLogRecord)
-logger = logging.getLogger('Slint')
+logger = logging.getLogger('Slynk')
 logger.setLevel(CONFIG["loglevel"])

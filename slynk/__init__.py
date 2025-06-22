@@ -31,8 +31,9 @@ async def upstream(reader, remote_writer, policy):
             if mode == 'TLSfrag':
                 await fragmenter.send_chunks(remote_writer, data, sni)
             elif mode == 'FAKEdesync':
-                # await ttlfaker.send_after_faking(remote_writer, data)
-                raise NotImplementedError("FAKEdesync is not supported yet.")
+                await fake_desync.send_data_with_fake(
+                    remote_writer, data, sni, policy
+                )
             elif mode == 'DIRECT':
                 remote_writer.write(data)
                 await remote_writer.drain()
