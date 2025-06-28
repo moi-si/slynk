@@ -12,8 +12,7 @@ from . import utils
 
 async def upstream(reader, remote_writer, policy):
     try:
-        data = await reader.read(16384)
-        if data == b'':
+        if (data := await reader.read(16384)) == b'':
             logger.info(
                 'Client closed connection to %s immediately.', remote_host.get()
             )
@@ -31,44 +30,32 @@ async def upstream(reader, remote_writer, policy):
             if mode == 'TLSfrag':
                 await fragmenter.send_chunks(remote_writer, data, sni)
             elif mode == 'FAKEdesync':
-                await fake_desync.send_data_with_fake(
-                    remote_writer, data, sni, policy
-                )
+                await fake_desync.send_data_with_fake(remote_writer, data, sni)
             elif mode == 'DIRECT':
                 remote_writer.write(data)
                 await remote_writer.drain()
             elif mode == 'GFWlike':
                 raise RuntimeError(f'{remote_host.get()} has been banned.')
-        while True:
-            data = await reader.read(16384)
-            if data == b'':
-                logger.info('Client closed connection to %s.', remote_host.get())
-                return
+        while (data := await reader.read(16384)) != b'':
             remote_writer.write(data)
             await remote_writer.drain()
+        logger.info('Client closed connection to %s.', remote_host.get())
     except Exception as e:
         logger.error('Upstream from %s: %s', remote_host.get(), repr(e))
 
 async def downstream(remote_reader, writer, policy):
     try:
-        data = await remote_reader.read(16384)
-        if data == b'':
+        if (data := await remote_reader.read(16384)) == b'':
             logger.info(
-                'Remote server %s closed connection to immediately.',
-                remote_host.get()
+                'Remote server %s closed connection immediately.', remote_host.get()
             )
             return
         writer.write(data)
         await writer.drain()
-        while True:
-            data = await remote_reader.read(16384)
-            if data == b'':
-                logger.info(
-                    'Remote server %s closed connection.', remote_host.get()
-                )
-                return
+        while (data := await remote_reader.read(16384)) != b'':
             writer.write(data)
             await writer.drain()
+        logger.info('Remote server %s closed connection.', remote_host.get())
     except Exception as e:
         logger.error('Downstream from %s: %s', remote_host.get(), repr(e))
 
@@ -97,8 +84,7 @@ async def http_handler(reader, writer):
                 writer.write(b'HTTP/1.1 502 Bad Gateway\r\n\r\n')
                 await writer.drain()
                 return
-            policy = domain_policy.get()
-            if policy is None:
+            if (policy := domain_policy.get()) is None:
                 raise RuntimeError(f'Failed to get policy for {remote_host.get()}')
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
@@ -113,7 +99,7 @@ async def http_handler(reader, writer):
         elif method in (
             'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', 'TRACE'
         ) and path.startswith('http://'):
-            path = path.removeprefix('http://')
+            path = path[len('http://'):]
             logger.info('Redirect HTTP to HTTPS for %s', path)
             message = (
                 f'HTTP/1.1 301 Moved Permanently\r\nLocation: https://{path}\r\n\r\n'
