@@ -1,6 +1,24 @@
 import ipaddress
 import socket
 import struct
+import asyncio
+import functools
+import contextvars
+
+async def to_thread(func, /, *args, **kwargs):
+    """Asynchronously run function *func* in a separate thread.
+
+    Any *args and **kwargs supplied for this function are directly passed
+    to *func*. Also, the current :class:`contextvars.Context` is propagated,
+    allowing context variables from the main thread to be accessed in the
+    separate thread.
+
+    Return a coroutine that can be awaited to get the eventual result of *func*.
+    """
+    loop = asyncio.get_running_loop()
+    ctx = contextvars.copy_context()
+    func_call = functools.partial(ctx.run, func, *args, **kwargs)
+    return await loop.run_in_executor(None, func_call)
 
 def ip_to_binary_prefix(ip_or_network):
     try:
@@ -26,13 +44,11 @@ def ip_to_binary_prefix(ip_or_network):
         except ValueError:
             raise ValueError(f"{ip_or_network} is not a valid IP address or network")
 
-'''
 def set_ttl(sock, ttl):
     if sock.family == socket.AF_INET6:
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_UNICAST_HOPS, ttl)
     else:
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
-
 
 def check_ttl(ip, port, ttl):
     from .logger_with_context import logger
@@ -46,14 +62,12 @@ def check_ttl(ip, port, ttl):
         sock.settimeout(0.5)
         sock.connect((ip, port))
         sock.send(b"0")
-        sock.close()
         return True
     except Exception as e:
-        logger.error('Failed to check TTL for %s:%d due to %s', ip, port, repr(e))
+        logger.error('TTL %d for %s:%d  failed due to %s', ip, port, repr(e))
         return False
     finally:
         sock.close()
-
 
 def get_ttl(ip, port):
     from .logger_with_context import logger
@@ -73,7 +87,6 @@ def get_ttl(ip, port):
 
     logger.info("TTL for %s:%d is %d.", ip, port, ans)
     return ans
-'''
 
 def is_ip_address(s):
     try:
@@ -81,7 +94,6 @@ def is_ip_address(s):
         return True
     except ValueError:
         return False
-
 
 def extract_sni(data):
     """
@@ -173,7 +185,6 @@ def parse_extensions(data):
     except struct.error as e:
         raise e
     return extensions
-
 
 def check_key_share(data):
     '''
@@ -274,114 +285,3 @@ def check_key_share(data):
         return -1
     except Exception:
         return 0
-'''
-def is_udp_dns_query(data):
-    if len(data) < 12:
-        return False
-    flags = data[2:4]  # 取出第3和第4字节
-    qr = flags[0] >> 7  # 取出QR位
-    return qr == 0  # QR位为0表示查询
-    
-import dns.message
-import dns.rrset
-import dns.rdatatype
-
-def fake_udp_dns_query(query):
-    dns_query = dns.message.from_wire(query)
-
-    # 创建DNS响应
-    response = dns.message.make_response(dns_query)
-
-    # 检查查询类型
-    for question in dns_query.question:
-        if question.rdtype == dns.rdatatype.A:
-            # A记录返回127.0.0.1
-            a_record = dns.rrset.from_text(question.name, 3600,"IN", "A", "66.254.114.41")
-            response.answer.append(a_record)
-        elif question.rdtype == dns.rdatatype.AAAA:
-            # AAAA记录返回::1
-            aaaa_record = dns.rrset.from_text(question.name, 3600,"IN" , "AAAA", "2a03:2880:f127:83:face:b00c:0:25de")
-            
-            response.answer.append(aaaa_record)
-        else:
-            # 其他记录返回未找到
-            response.set_rcode(dns.rcode.NXDOMAIN)
-            return response
-
-    return response.to_wire()
-    
-def parse_socks5_address(sock):
-    """SOCKS5地址解析"""
-    atyp=sock.recv(1)[0]
-    if atyp == 0x01:  # IPv4
-        server_ip = socket.inet_ntop(socket.AF_INET, sock.recv(4))
-        return server_ip, int.from_bytes(sock.recv(2), "big")
-    elif atyp == 0x03:  # 域名
-        domain_len = ord(sock.recv(1))
-        server_name = sock.recv(domain_len).decode()
-        port = int.from_bytes(sock.recv(2), "big")
-        return server_name, port
-    elif atyp == 0x04:  # IPv6
-        server_ip = socket.inet_ntop(socket.AF_INET6, sock.recv(16))
-        return server_ip, int.from_bytes(sock.recv(2), "big")
-    raise ValueError("Invalid address type")
-
-def parse_socks5_address_from_data(data):
-    """SOCKS5 address parsing with error handling"""
-    offset = 0
-    atyp = data[offset:offset+1][0]
-    offset += 1
-    
-    if atyp == 0x01:  # IPv4
-        if len(data) < offset + 6:  # 4 bytes for IP + 2 bytes for port
-            raise ValueError("Data too short for IPv4 address")
-        server_ip = socket.inet_ntop(socket.AF_INET, data[offset:offset + 4])
-        offset += 4
-        port = int.from_bytes(data[offset:offset + 2], "big")
-        offset += 2
-        return server_ip, port, offset
-    elif atyp == 0x03:  # Domain name
-        if len(data) < offset + 1:  # At least 1 byte for domain length
-            raise ValueError("Data too short for domain length")
-        domain_len = data[offset]
-        offset += 1
-        if len(data) < offset + domain_len + 2:  # domain + 2 bytes for port
-            raise ValueError("Data too short for domain address")
-        server_name = data[offset:offset + domain_len].decode()
-        offset += domain_len
-        port = int.from_bytes(data[offset:offset + 2], "big")
-        offset += 2
-        return server_name, port, offset
-    elif atyp == 0x04:  # IPv6
-        if len(data) < offset + 18:  # 16 bytes for IP + 2 bytes for port
-            raise ValueError("Data too short for IPv6 address")
-        server_ip = socket.inet_ntop(socket.AF_INET6, data[offset:offset + 16])
-        offset += 16
-        port = int.from_bytes(data[offset:offset + 2], "big")
-        offset += 2
-        return server_ip, port, offset
-    raise ValueError("Invalid address type")
-
-def build_socks5_address(ip, port):
-    """根据 IP 和端口构造 SOCKS5 地址"""
-    # 解析 IP 地址
-    try:
-        packed_ip = socket.inet_pton(socket.AF_INET, ip)  # IPv4
-        atyp = 0x01  # 地址类型为 IPv4
-    except socket.error:
-        try:
-            packed_ip = socket.inet_pton(socket.AF_INET6, ip)  # IPv6
-            atyp = 0x04  # 地址类型为 IPv6
-        except socket.error:
-            # 如果都无法解析，抛出异常
-            raise ValueError("Invalid IP address format")
-
-    # 构造 SOCKS5 地址
-    return bytes([atyp]) + packed_ip + port.to_bytes(2, 'big')
-
-def build_socks5_udp_ans(address,port,data):
-    addr=build_socks5_address(address,port)
-    hdr_len=len(addr)+3
-    msg_len=len(data)+hdr_len
-    return msg_len.to_bytes(2,'big')+hdr_len.to_bytes(1,'big')+addr+data
-'''
