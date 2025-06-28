@@ -90,20 +90,10 @@ try:
 except FileNotFoundError:
     pass
 
-def _write_cache(filename, data):
-    with open(filename, "w") as f:
-        json.dump(data, f)
+def write_DNS_cache():
+    with open("DNS_cache.json", "w") as f:
+        json.dump(DNS_cache, f)
 
-async def write_DNS_cache():
-    await asyncio.get_running_loop().run_in_executor(
-        None,
-        _write_cache,
-        'DNS_cache.json', DNS_cache
-    )
-
-async def write_TTL_cache():
-    await asyncio.get_running_loop().run_in_executor(
-        None,
-        _write_cache,
-        'TTL_cache.json', TTL_cache
-    )
+def write_TTL_cache():
+    with open("TTL_cache.json", "w") as f:
+        json.dump(TTL_cache, f)
