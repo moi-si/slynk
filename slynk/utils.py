@@ -194,8 +194,7 @@ def check_key_share(data):
         if len(data) < 5: # Not long enough
             return 0
 
-        # Parse TLS record layer header:
-        # 1-byte type, 2-type version, 2-type length.
+        # Parse TLS record layer header: 1-byte type, 2-byte version, 2-byte length.
         record_type, record_version, record_length = struct.unpack('!BHH', data[:5])
 
         # Check if it is a Handshake (type 22) and data length is sufficient.
