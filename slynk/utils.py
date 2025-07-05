@@ -42,7 +42,9 @@ def ip_to_binary_prefix(ip_or_network):
                 binary_prefix = binary_ip[:128]
             return binary_prefix
         except ValueError:
-            raise ValueError(f"{ip_or_network} is not a valid IP address or network")
+            raise ValueError(
+                f"{ip_or_network} is not a valid IP address or network"
+            )
 
 def set_ttl(sock, ttl):
     if sock.family == socket.AF_INET6:
@@ -64,7 +66,7 @@ def check_ttl(ip, port, ttl):
         sock.send(b"0")
         return True
     except Exception as e:
-        logger.error('TTL %d for %s:%d  failed due to %s', ip, port, repr(e))
+        logger.error('TTL %d for %s:%d failed due to %s', ip, port, repr(e))
         return False
     finally:
         sock.close()
@@ -85,7 +87,7 @@ def get_ttl(ip, port):
         else:
             l = mid + 1
 
-    logger.info("TTL for %s:%d is %d.", ip, port, ans)
+    logger.info("TTL %d is reachable on %s:%d.", ans, ip, port)
     return ans
 
 def is_ip_address(s):
@@ -165,26 +167,25 @@ def extract_sni(data):
         offset += 4 + extension_length
     return None
 
+'''
 def parse_extensions(data):
     extensions = {}
     offset = 0
-    try:
-        while offset < len(data):
-            if offset + 4 > len(data):
-                break
-            # 解析扩展类型
-            ext_type = struct.unpack('>H', data[offset:offset + 2])[0]
-            # 解析扩展长度
-            ext_length = struct.unpack('>H', data[offset + 2:offset + 4])[0]
-            if offset + 4 + ext_length > len(data):
-                break
-            # 解析扩展数据
-            ext_data = data[offset + 4:offset + 4 + ext_length]
-            extensions[ext_type] = ext_data
-            offset += 4 + ext_length
-    except struct.error as e:
-        raise e
+    while offset < len(data):
+        if offset + 4 > len(data):
+            break
+        # 解析扩展类型
+        ext_type = struct.unpack('>H', data[offset:offset + 2])[0]
+        # 解析扩展长度
+        ext_length = struct.unpack('>H', data[offset + 2:offset + 4])[0]
+        if offset + 4 + ext_length > len(data):
+            break
+        # 解析扩展数据
+        ext_data = data[offset + 4:offset + 4 + ext_length]
+        extensions[ext_type] = ext_data
+        offset += 4 + ext_length
     return extensions
+'''
 
 def check_key_share(data):
     '''
@@ -202,7 +203,7 @@ def check_key_share(data):
             return 0
 
         # Extract Handshake protocol data (excluding record layer header).
-        handshake_data = data[5:5+record_length]
+        handshake_data = data[5:5 + record_length]
         if len(handshake_data) < 4:  # Handshake header must be at least 4 bytes.
             return 0
 
@@ -280,7 +281,11 @@ def check_key_share(data):
             offset += ext_len
             if offset > end_ext:
                 return 0
-        
+
         return -1
-    except Exception:
+
+    except Exception as e:
+        from .logger_with_context import logger
+        logger = logger.getChild("utils")
+        logger.debug('While checking key_share: %s', repr(e))
         return 0

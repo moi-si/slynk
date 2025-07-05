@@ -15,7 +15,7 @@ class Resolver:
         self.session = None
         self.headers = {'Accept': 'application/dns-message'}
 
-    async def create_session(self):
+    async def init_session(self):
         self.session = aiohttp.ClientSession()
 
     async def close_session(self):
@@ -24,7 +24,7 @@ class Resolver:
             self.session = None
 
     async def resolve(self, domain, qtype):
-        logger.info('DNS Resolving %s', domain)
+        logger.info('Resolving %s', domain)
 
         try:
             params = {
@@ -39,7 +39,10 @@ class Resolver:
             async with self.session.get(
                 query_url, params=params, headers=self.headers, proxy=self.proxy
             ) as resp:
-                if resp.status == 200 and resp.headers.get('content-type') == 'application/dns-message':
+                content_type = resp.headers.get('content-type')
+                if (
+                    resp.status == 200 and content_type == 'application/dns-message'
+                ):
                     resp_wire = await resp.read()
                     resp_message = dns.message.from_wire(resp_wire)
 
@@ -50,10 +53,13 @@ class Resolver:
                             return result
                 else:
                     logger.error(
-                        'Invalid DoH response | Status: %s, Reason: %s', resp.status, resp.reason
+                        'Invalid DoH response for %s | Status: %s, Reason: %s',
+                        domain, resp.status, resp.reason
                     )
                     return None
 
         except Exception as e:
-            logger.error('%s while resolving %s', repr(e), domain)
+            logger.error(
+                'While resolving %s: %s', domain, repr(e), exc_info=True
+            )
             return None

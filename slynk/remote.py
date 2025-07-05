@@ -41,21 +41,19 @@ def match_domain(domain):
     matched_domains = domain_policies.search(f'^{domain}$')
     if matched_domains:
         return copy.deepcopy(
-                CONFIG["domains"].get(sorted(matched_domains, key=len, reverse=True)[0])
-            )
+            CONFIG["domains"].get(sorted(matched_domains, key=len, reverse=True)[0])
+        )
     else:
         return {}
 
-async def get_connection(host, port, protocol=6):
-    from . import DNSResolver
+async def get_connection(host, port, dns_resolver, protocol=6):
     policy = {**default_policy, **match_domain(host)}
     domain_policy.set(policy)
     policy.setdefault('port', 443)
     port = policy['port']
-    ip = None
     if utils.is_ip_address(host):
-        policy['IP'] = host
-    if policy.get('IP'):
+        ip = host
+    elif policy.get('IP'):
         ip = policy['IP']
     elif DNS_cache.get(host):
         ip = DNS_cache[host]
@@ -63,14 +61,16 @@ async def get_connection(host, port, protocol=6):
     else:
         if policy.get('IPv6_first'):
             try:
-                ip = await DNSResolver.resolve(host, 'AAAA')
+                ip = await dns_resolver.resolve(host, 'AAAA')
             except Exception:
-                ip = await DNSResolver.resolve(host, 'A')
+                logger.warning('Failed to resolve %s via IPv6. Trying IPv4.')
+                ip = await dns_resolver.resolve(host, 'A')
         else:
             try:
-                ip = await DNSResolver.resolve(host, 'A')
+                ip = await dns_resolver.resolve(host, 'A')
             except Exception:
-                ip = await DNSResolver.resolve(host, 'AAAA')
+                logger.warning('Failed to resolve %s via IPv4. Trying IPv6.')
+                ip = await dns_resolver.resolve(host, 'AAAA')
         if ip is None:
             raise RuntimeError(f'Failed to resolve {host}.')
         elif policy.get('DNS_cache'):
@@ -106,7 +106,7 @@ async def get_connection(host, port, protocol=6):
     logger.info('%s --> %s', host, policy)
     if protocol == 6:
         reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(ip, port), timeout=60
+            asyncio.open_connection(ip, port), timeout=30
         )
         return reader, writer
     elif protocol == 17:

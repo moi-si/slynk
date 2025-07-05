@@ -82,13 +82,13 @@ try:
     with open("DNS_cache.json", "rb") as f:
         DNS_cache = json.load(f)
 except FileNotFoundError:
-    pass
+    print('DNS cache not found')
 
 try:
     with open("TTL_cache.json", "rb") as f:
         TTL_cache = json.load(f)
 except FileNotFoundError:
-    pass
+    print('DNS cache not found')
 
 def write_DNS_cache():
     with open("DNS_cache.json", "w") as f:

@@ -166,7 +166,6 @@ try:
         libc.pipe.argtypes = [ctypes.POINTER(ctypes.c_int)]
         libc.pipe.restype = ctypes.c_int
 
-        pass
 except Exception as e:
     logger.warning(repr(e))
 
@@ -176,7 +175,8 @@ def send_fake_data(
     logger.info(system)
     if system == "Windows":
         logger.warning(
-            "Desync on Windows may cause Error! Make sure other programs are not using the TransmitFile. "
+            "Desync on Windows may cause Error!"
+            "Make sure other programs are not using the TransmitFile. "
         )
         """
         BOOL TransmitFile(
@@ -190,7 +190,6 @@ def send_fake_data(
         );
         """
         import tempfile, uuid
-
         file_path = f"{tempfile.gettempdir()}\\{uuid.uuid4()}.txt"
 
         sock_file_descriptor = sock.fileno()
@@ -251,7 +250,7 @@ def send_fake_data(
                 logger.warning("Too short sleep time on Windows, set to 0.1")
                 FAKE_sleep = 0.1
 
-            logger.info("sleep for: %d", FAKE_sleep)
+            logger.info("Sleep for: %f", FAKE_sleep)
             time.sleep(FAKE_sleep)
             kernel32.SetFilePointer(file_handle, 0, 0, 0)
             kernel32.WriteFile(
@@ -315,8 +314,6 @@ def send_fake_data(
             libc.memcpy(p, real_data, data_len)
             set_ttl(sock, default_ttl)
             return True
-        except Exception as e:
-            raise e
         finally:
             libc.munmap(p, ((data_len - 1) // 4 + 1) * 4)
             libc.close(fds[0])
@@ -327,7 +324,7 @@ def send_fake_data(
 async def send_data_with_fake(writer, data, sni, policy):
     try:
         if (sock := writer.get_extra_info('socket')) is None:
-            raise RuntimeError('Failed to get socket of writer.')
+            raise RuntimeError('Failed to get socket of writer')
         logger.info("To send: %d bytes. ", len(data))
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         default_ttl = sock.getsockopt(socket.IPPROTO_IP, socket.IP_TTL)

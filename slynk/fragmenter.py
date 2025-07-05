@@ -74,8 +74,8 @@ async def send_chunks(writer, data, sni):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         policy = domain_policy.get()
 
-        logger.info('To send: %d Bytes.', len(data))
-        logger.debug('To send: %s', repr(data))
+        logger.info('To send: %d bytes.', len(data))
+        # logger.debug('To send: %s', repr(data))
         base_header = data[:3]
         record = data[5:]
 
@@ -91,7 +91,7 @@ async def send_chunks(writer, data, sni):
             )
             tcp_data += tmp
             logger.debug('Added chunk: of %d bytes.', len(tmp))
-            logger.debug('Added chunk: %s', tmp)
+            # logger.debug('Added chunk: %s', tmp)
 
         logger.info('TLS chunked: %d bytes.', len(tcp_data))
         logger.debug('TLS chunked: %s', repr(tcp_data))
@@ -114,14 +114,15 @@ async def send_chunks(writer, data, sni):
             writer.write(packet)
             await writer.drain()
             logger.debug(
-                "TCP sent: %d bytes. And 'll sleep for %d seconds.",
+                "TCP sent: %d bytes. And 'll sleep for %f seconds.",
                 len(packet),
                 policy["send_interval"],
             )
-            logger.debug("TCP sent: %s", repr(packet))
+            # logger.debug("TCP sent: %s", repr(packet))
             await asyncio.sleep(policy["send_interval"])
 
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
+        logger.debug('Successfully send all the chunks.')
 
     except Exception as e:
         logger.error('Failed to send chunks due to %s', repr(e))
