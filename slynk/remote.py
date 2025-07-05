@@ -1,12 +1,10 @@
 import socket
 import asyncio
 import ipaddress
-import copy
 
 from .logger_with_context import logger, domain_policy
 from . import utils
 from .config import (
-    domain_policies,
     CONFIG,
     default_policy,
     ipv4_map,
@@ -14,7 +12,8 @@ from .config import (
     DNS_cache,
     TTL_cache,
     write_DNS_cache,
-    write_TTL_cache
+    write_TTL_cache,
+    match_domain
 )
 
 logger = logger.getChild('remote')
@@ -36,15 +35,6 @@ def redirect(ip):
     if mapped_ip[0] == "^":
         return mapped_ip[1:]
     return redirect(mapped_ip)
-
-def match_domain(domain):
-    matched_domains = domain_policies.search(f'^{domain}$')
-    if matched_domains:
-        return copy.deepcopy(
-            CONFIG["domains"].get(sorted(matched_domains, key=len, reverse=True)[0])
-        )
-    else:
-        return {}
 
 async def get_connection(host, port, dns_resolver, protocol=6):
     policy = {**default_policy, **match_domain(host)}

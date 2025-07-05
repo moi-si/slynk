@@ -2,6 +2,7 @@
     "loglevel": "INFO",
     "port": 3500,
     "proxy_type": "http",
+    "match_mode": "trie",
     "FAKE_ttl_auto_timeout": 5,
     "DNS_URL": "https://cloudflare-dns.com/dns-query",
     "DNS_cache_update_interval": 2,
@@ -29,7 +30,7 @@
         "2606:4700::/32": "^104.21.57.162",
         "2400:cb00::/32": "^104.21.3.224"
     },
-    "domains": {
+    "domain_policies": {
         "streaming.mastodon.social": {},
         "smsactivate.s3.eu-central-1.amazonaws.com": {
             "IP": "3.5.137.138"
@@ -38,29 +39,23 @@
             "IP": "87.250.250.50",
             "mode": "FAKEdesync"
         },
-        "yandex.com": {
-            "mode": "FAKEdesync"
-        },
-        "inv.nadeko.net": {
-            "IP": "186.105.142.141"
-        },
         "annas-archive.org": {},
-        "mastodon.social": {
-            "IP": "199.232.89.91"
+        "*mastodon.social": {
+            "IP": "146.75.49.91"
         },
-        "codesandbox.io": {
+        "*fosstodon.social": {
+            "IP": "146.75.51.52"
+        },
+        "*codesandbox.io": {
             "IP": "104.21.3.227"
         },
-        "stackblitz.com": {
+        "*stackblitz.com": {
             "IP": "13.32.27.56"
         },
-        "giscus.app": {
-            "mode": "FAKEdesync"
-        },
-        "bbc.com": {
+        "*bbc.com": {
             "IP": "146.75.36.81"
         },
-        "steampowered.com": {
+        "*steampowered.com": {
             "IP": "23.202.181.157"
         },
         "api.steampowered.com": {
@@ -69,7 +64,7 @@
         "login.steampowered.com": {
             "IP": "23.199.145.239"
         },
-        "quora": {
+        "*quora.com": {
             "IP": "104.21.3.225",
             "len_tls_sni": 3
         },
@@ -84,68 +79,52 @@
             "IP": "13.107.42.12",
             "mode": "FAKEdesync"
         },
-        "live.com": {
+        "*giscus.app": {
+            "IP": "18.162.37.140",
             "mode": "FAKEdesync"
         },
-        "vercel.app": {
+        "*(vercel.app/kards.com)": {
+            "IP": "18.162.37.140",
             "mode": "FAKEdesync"
         },
-        "cloudflare.com": {
+        "*cloudflare.com": {
             "IP": "104.21.3.226"
         },
         "cn.nytimes.com": {},
-        "nytimes.com": {
+        "*nytimes.com": {
             "IP": "199.232.137.164"
         },
         "purr.nytimes.com": {},
         "et.nytimes.com": {},
-        "nyt.com": {
+        "*nyt.com": {
             "IP": "199.232.137.164"
         },
-        "pornhub.com": {
+        "*pornhub.com": {
             "IP": "66.254.114.40"
         },
         "help.pornhub.com": {},
         "web.archive.org": {
             "IP": "207.241.237.3"
         },
-        "archive.org": {
+        "(archive/www.archive).org": {
             "IP": "207.241.225.120"
         },
-        "www.archive.org": {
-            "IP": "207.241.225.120"
-        },
-        ".archive.org": {},
-        "pages.dev": {
+        "*.archive.org": {},
+        "*pages.dev": {
             "IP": "172.66.44.87"
         },
-        "reddit": {
-            "IP": "146.75.37.140",
-            "len_tls_sni": 3,
-            "len_tcp_sni": 5
-        },
-        "redd.it": {
-            "IP": "151.101.45.140",
-            "len_tls_sni": 3,
-            "len_tcp_sni": 5
-        },
-        "codeload.github.com": {
-            "IP": "4.237.22.35",
-            "len_tls_sni": 3,
-            "len_tcp_sni": 5
-        },
-        "github.com": {
-            "IP": "4.237.22.38",
-            "len_tls_sni": 3,
-            "len_tcp_sni": 5
-        },
-        "gist.github.com": {
+        "(github/gist.github).com": {
             "IP": "4.237.22.38",
             "len_tls_sni": 3,
             "len_tcp_sni": 5
         },
         "api.github.com": {
             "IP": "4.237.22.34",
+            "len_tls_sni": 3,
+            "len_tcp_sni": 5
+        },
+        "codeload.github.com": {
+            "IP": "4.237.22.35",
             "len_tls_sni": 3,
             "len_tcp_sni": 5
         },
@@ -159,195 +138,63 @@
             "len_tls_sni": 3,
             "len_tcp_sni": 5
         },
-        "github.io": {
+        "*github.io": {
             "IP": "146.75.48.133"
         },
-        "githubusercontent.com": {
+        "*.githubusercontent.com": {
             "IP": "146.75.48.133"
         },
         "objects-origin.githubusercontent.com": {
             "IP": "140.82.113.22"
         },
-        "wikipedia.org": {
+        "*(wikimedia/wikipedia/wiktionary/wikiversity/wikivoyage/wikisource/wikinews/wikidata/mediawiki/wikifunctions).org": {
             "IP": "185.15.58.224"
         },
         "upload.wikimedia.org": {
             "IP": "185.15.58.240"
         },
-        "wiktionary.org": {
-            "IP": "185.15.59.224"
-        },
-        "wikiversity.org": {
-            "IP": "185.15.58.224"
-        },
-        "wikivoyage.org": {
-            "IP": "185.15.58.224"
-        },
-        "wikisource.org": {
-            "IP": "185.15.58.224"
-        },
-        "wikinews.org": {
-            "IP": "185.15.58.224"
-        },
-        "wikidata.org": {
-            "IP": "185.15.58.224"
-        },
-        "species.wikimedia.org": {
-            "IP": "185.15.58.224"
-        },
-        "meta.wikimedia.org": {
-            "IP": "185.15.58.224"
-        },
-        "mediawiki.org": {
-            "IP": "185.15.58.224"
-        },
-        "wikifunctions.org": {
-            "IP": "185.15.58.224"
-        },
-        "pixiv": {
+        "*pixiv.(net|org)": {
             "len_tls_sni": 3
         },
-        "chrome.com": {
+        "*(google.com/google.com.hk/google.dev/googleapis.com/gstatic.com/googleusercontent.com/.google/goo.gl/translate.goog/android.com/ai.dev/chrome.com/chromium.org/golang.org/youtube.com/youtu.be/youtube-nocookie.com/.ytimg.com/.ggpht.com/gvt1.com)": {
             "IP": "35.190.247.150",
             "port": 1445,
             "safety_check": true
         },
-        "chromium.org": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
+        "*googlevideo.com": {
+            "IPtype": "ipv6"
         },
-        ".google$": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "deepmind.google": {},
-        "goo.gl": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "google.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "ai.dev": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "google.dev": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "android.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "golang.org": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "blogger.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "gvt1.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "googlevideo.com": {
-            "IPv6_first": true
-        },
-        "googleusercontent.com": {
-            "IP": "4.193.121.119",
-            "port": 41620
-        },
-        ".translate.goog": {
-            "IP": "4.193.121.119",
-            "port": 41620
-        },
-        "ggpht.com": {
-            "IP": "4.193.121.119",
-            "port": 41620
-        },
-        "gstatic.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "googleapis.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "youtube.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "youtube-nocookie.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "youtu.be": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "ytimg.com": {
-            "IP": "35.190.247.150",
-            "port": 1445,
-            "safety_check": true
-        },
-        "facebook.com": {
-            "IP": "157.240.229.35",
+        "*facebook.com": {
+            "IP": "157.240.22.169",
             "TLSfrag": 3,
             "TCPfrag": 5
         },
-        "www.instagram.com": {
-            "IP": "2a03:2880:f276:e8:face:b00c:0:4420"
-        },
-        "meta": {
-            "len_tls_sni": 2,
-            "len_tcp_sni": 3,
-            "send_interval": 0.01
+        "*instagram.com": {
+            "IP": "57.144.160.34"
         },
         "static.cdninstagram.com": {
-            "IP": "2a03:2880:f276:d2:face:b00c:0:43fe"
+            "IP": "57.144.160.192"
         },
         "static.xx.fbcdn.net": {
-            "IP": "157.240.229.35",
+            "IP": "157.240.22.22",
             "len_tls_sni": 3,
             "len_tcp_sni": 5
         },
-        "fbcdn.net": {
-            "IPv6_first": true
+        "xx.fbcdn.net": {
+            "IP": "157.240.22.169",
+            "len_tls_sni": 3
         },
+        "fbcdn.net": {},
         "fbsbx.com": {
-            "IP": "2a03:2880:f115:83:face:b00c:0:25de",
+            "IP": "57.144.160.1",
             "len_tls_sni": 3,
             "len_tcp_sni": 5
         },
-        "dropbox.com": {
+        "(dropbox/www.dropbox).com": {
             "IP": "162.125.2.18"
         },
-        "www.dropbox.com": {
-            "IP": "162.125.2.18"
-        },
-        ".dropbox.com": {},
-        "telegram.org": {
-            "IP": "149.154.161.145"
-        },
-        "telegram.me": {
+        "*.dropbox.com": {},
+        "*telegram.(org/me)": {
             "IP": "149.154.161.145"
         },
         "t.me": {
@@ -356,10 +203,6 @@
             "num_tcp_pieces": 3,
             "num_tls_pieces": 5,
             "len_tcp_sni": 2
-        },
-        "medium": {},
-        "cdn-telegram.org": {
-            "IPv6_first": "ipv4"
         },
         "zws5.web.telegram.org": {
             "IP": "149.154.170.200"
@@ -373,7 +216,7 @@
         "aurora.web.telegram.org": {
             "IP": "2001:b28:f23d:8007::805:532"
         },
-        "xcannel.com": {
+        "*xcannel.com": {
             "IP": "198.98.60.34"
         },
         "cdn.xcannel.com": {
@@ -381,14 +224,15 @@
         },
         "video.twimg.com": {
             "CDN": "Fastly: 2024/11/13: 151.101.40.158",
-            "len_tcp_sni": 8,
-            "IPcache": false
-        },
-        "twimg.com": {
-            "IP": "146.75.72.157",
+            "len_tcp_sni": 5,
+            "IP": "151.101.88.158",
             "len_tls_sni": 4
         },
-        "x.com": {
+        "*twimg.com": {
+            "IP": "146.75.48.159",
+            "len_tls_sni": 4
+        },
+        "*x.com": {
             "IP": "104.18.38.25",
             "len_tcp_sni": 5,
             "send_interval": 0.02,
@@ -398,7 +242,7 @@
             "IP": "146.75.120.157",
             "len_tls_sni": 4
         },
-        "twitter.com": {
+        "*twitter.com": {
             "IP": "104.18.38.25",
             "len_tls_sni": 4
         },
@@ -420,151 +264,10 @@
             "len_tls_sni": 6
         },
         "tracking.miui.com": {
-            "method": "GFWlike"
+            "mode": "GFWlike"
         },
-        "bilibili.com": {
-            "method": "DIRECT"
+        "*(bilibili.com/.cn)": {
+            "mode": "DIRECT"
         }
-    },
-    "pac_domains": [
-        "wikifunctions.org$",
-        "mediawiki.org$",
-        "ncdn.ec$",
-        "cloudflare-dns.com$",
-        "adminforge.de$",
-        "nadeko.net$",
-        "anoxinon.de$",
-        "uptodown.com$",
-        "google$",
-        "freeweibo.com$",
-        "fosstodon.org$",
-        "smsactivate.s3.eu-central-1.amazonaws.com$",
-        "android.com$",
-        "readthedocs.io$",
-        "sleazyfork.org$",
-        "greasyfork.org$",
-        "codesandbox.io$",
-        "wikiquote.org$",
-        "wikisource.org$",
-        "indieweb.social$",
-        "mov.im$",
-        "stackblitz.com$",
-        "bbc.co.uk$",
-        "economist.com$",
-        "conversations.im$",
-        "611study.icu$",
-        "xmpp.jp$",
-        "cmx.im$",
-        "cmlmuf.top$",
-        "hack.chat$",
-        "laborinfocn6.com$",
-        "annas-archive.org$",
-        "ci-ic.org$",
-        "opkode.com$",
-        "f-droid.org$",
-        "protonvpn.com$",
-        "archive.ph$",
-        "lsepcn.com$",
-        "patreon.com$",
-        "conversejs.org$",
-        "notion.site$",
-        "go.dev$",
-        "golang.org$",
-        "chromium.org$",
-        "cloudflare.com$",
-        "bootstrapcdn.com$",
-        "apkmirror.com$",
-        "giscus.app$",
-        "medium.com$",
-        "suno.com$",
-        "quoracdn.net$",
-        "quora.com$",
-        "onedrive.live.com$",
-        "bbci.co.uk$",
-        "bbc.com$",
-        "huggingface.co$",
-        "nyt.com$",
-        "nytimes.com$",
-        "freeflarum.com$",
-        "thepiratebay.org$",
-        "pornhub.com$",
-        "archive.org$",
-        "rutube.ru$",
-        "youtu.be$",
-        "pximg.net$",
-        "vercel.app$",
-        "nicovideo.jp$",
-        "chrome.com$",
-        "archive-it.org$",
-        "croxy.network$",
-        "proton.me$",
-        "cookielaw.org$",
-        "phncdn.com$",
-        "docker.com$",
-        "discord.gg$",
-        "discordapp.com$",
-        "discord.com$",
-        "blogger.com$",
-        "redd.it$",
-        "redditmedia.com$",
-        "redditstatic.com$",
-        "reddit.com$",
-        "receiveasmsonline.com$",
-        "good.news$",
-        "bsky.app$",
-        "bsky.social$",
-        "pscp.tv$",
-        "matrix.org$",
-        "pixiv.net$",
-        "imgur.com$",
-        "gravatar.com$",
-        "twitch.tv$",
-        "bit.ly$",
-        "duckduckgo.com$",
-        "cdn-telegram.org$",
-        "githubusercontent.com$",
-        "github.io$",
-        "github.com$",
-        "wikinews.org$",
-        "wikipedia.org$",
-        "wikimedia.org$",
-        "instagram.com$",
-        "dropbox.com$",
-        "bu2021.xyz$",
-        "cdninstagram.com$",
-        "fbsbx.com$",
-        "facebook.com$",
-        "fbcdn.net$",
-        "translate.goog$",
-        "ggpht.com$",
-        "telegram.me$",
-        "t.me$",
-        "v2ex.com$",
-        "googleapis.com$",
-        "x.com$",
-        "twimg.com$",
-        "twitter.com$",
-        "withgoogle.com$",
-        "telegram.org$",
-        "youtube.com$",
-        "ytimg.com$",
-        "googlevideo.com$",
-        "googleusercontent.com$",
-        "google.com.hk$",
-        "google.com$",
-        "workers.dev$",
-        "xcancel.com$",
-        "geph.io$",
-        "1lib.sk$",
-        "odycdn.com$",
-        "odysee.com$",
-        "torproject.org$",
-        "mastodon.social$",
-        "freezhihu.org$",
-        "z-library.sk$",
-        "pages.dev$",
-        "greatfire.org$",
-        "gstatic.com$",
-        "githubassets.com$"
-    ]
+    }
 }
