@@ -17,8 +17,7 @@
         "fake_ttl": "query",
         "fake_sleep": 0.2,
         "send_interval": 0.01,
-        "DNS_cache": true,
-        "TTL_cache": true
+        "DNS_cache": true
     },
     "IPredirect": {
         "104.16.0.0/13": "104.21.57.162",
