@@ -7,8 +7,6 @@
     "DNS_URL": "https://cloudflare-dns.com/dns-query",
     "DNS_cache_update_interval": 2,
     "TTL_cache_update_interval": 2,
-    "UDPfakeDNS": true,
-    "BySNIfirst": false,
     "default_policy": {
         "num_tcp_pieces": 8,
         "num_tls_pieces": 8,
@@ -79,11 +77,7 @@
             "IP": "13.107.42.12",
             "mode": "FAKEdesync"
         },
-        "*giscus.app": {
-            "IP": "18.162.37.140",
-            "mode": "FAKEdesync"
-        },
-        "*(vercel.app/kards.com)": {
+        "*(giscus.app/vercel.app/kards.com)": {
             "IP": "18.162.37.140",
             "mode": "FAKEdesync"
         },
@@ -91,14 +85,11 @@
             "IP": "104.21.3.226"
         },
         "cn.nytimes.com": {},
-        "*nytimes.com": {
+        "*(nytimes/nyt).com": {
             "IP": "199.232.137.164"
         },
         "purr.nytimes.com": {},
         "et.nytimes.com": {},
-        "*nyt.com": {
-            "IP": "199.232.137.164"
-        },
         "*pornhub.com": {
             "IP": "66.254.114.40"
         },
@@ -138,10 +129,7 @@
             "len_tls_sni": 3,
             "len_tcp_sni": 5
         },
-        "*github.io": {
-            "IP": "146.75.48.133"
-        },
-        "*.githubusercontent.com": {
+        "*(github.io/.githubusercontent.com/pages.github.com/docs.github.com)": {
             "IP": "146.75.48.133"
         },
         "objects-origin.githubusercontent.com": {
@@ -156,8 +144,8 @@
         "*pixiv.(net|org)": {
             "len_tls_sni": 3
         },
-        "*(google.com/google.com.hk/google.dev/googleapis.com/gstatic.com/googleusercontent.com/.google/goo.gl/translate.goog/android.com/ai.dev/chrome.com/chromium.org/golang.org/youtube.com/youtu.be/youtube-nocookie.com/.ytimg.com/.ggpht.com/gvt1.com)": {
-            "IP": "35.190.247.150",
+        "*(google.com/google.com.hk/google.dev/googleapis.com/gstatic.com/googleusercontent.com/.google/goo.gl/translate.goog/android.com/ai.dev/blogger.com/chrome.com/chromium.org/golang.org/youtube.com/youtu.be/youtube-nocookie.com/.ytimg.com/.ggpht.com/gvt1.com)": {
+            "IP": "35.190.247.198",
             "port": 1445,
             "safety_check": true
         },
@@ -204,16 +192,10 @@
             "num_tls_pieces": 5,
             "len_tcp_sni": 2
         },
-        "zws5.web.telegram.org": {
+        "zws(5/5-1).web.telegram.org": {
             "IP": "149.154.170.200"
         },
-        "zws5-1.web.telegram.org": {
-            "IP": "149.154.170.200"
-        },
-        "pluto.web.telegram.org": {
-            "IP": "2001:b28:f23d:8007::805:532"
-        },
-        "aurora.web.telegram.org": {
+        "(pluto/aurora).web.telegram.org": {
             "IP": "2001:b28:f23d:8007::805:532"
         },
         "*xcannel.com": {
@@ -248,8 +230,7 @@
         },
         "video.pscp.tv": {
             "IP": "146.75.34.164",
-            "len_tls_sni": 9,
-            "IPcache": false
+            "len_tls_sni": 9
         },
         "one.one.one.one": {
             "IP": "104.21.3.221",
@@ -266,7 +247,7 @@
         "tracking.miui.com": {
             "mode": "GFWlike"
         },
-        "*(bilibili.com/.cn)": {
+        "*example.com, www.fbi.gov":{
             "mode": "DIRECT"
         }
     }
