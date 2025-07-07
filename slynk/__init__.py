@@ -79,7 +79,7 @@ async def upstream(reader, writer, remote_writer, policy):
     except Exception as e:
         logger.error('Upstream from %s: %s', remote_host.get(), repr(e))
 
-async def downstream(remote_reader, writer, policy):
+async def downstream(remote_reader, writer):
     try:
         if (data := await remote_reader.read(16384)) == b'':
             logger.info(
