@@ -3,14 +3,16 @@ __version__ = '0.1.0'
 import asyncio
 
 from .config import CONFIG
-from .logger_with_context import logger, client_port, domain_policy, remote_host
+from .logger_with_context import (
+    logger, client_port, domain_policy, remote_host
+)
 from .remote import get_connection
 from . import fragmenter
 from . import dns_resolver
 from . import fake_desync
 from . import utils
 
-async def upstream(reader, remote_writer, policy):
+async def upstream(reader, writer, remote_writer, policy):
     try:
         if (data := await reader.read(16384)) == b'':
             logger.info(
@@ -19,8 +21,9 @@ async def upstream(reader, remote_writer, policy):
             return
         if policy.get('safety_check') and (
             has_key_share := utils.check_key_share(data)
-        ) != 1:
-            raise RuntimeError('Not a TLS 1.3 connection', has_key_share)
+        )[0] != 1:
+            await utils.send_tls_alert(writer, has_key_share[1])
+            raise RuntimeError('Not a TLS 1.3 connection', has_key_share[0])
         if (sni := utils.extract_sni(data)) is None:
             remote_writer.write(data)
             await remote_writer.drain()
@@ -35,10 +38,12 @@ async def upstream(reader, remote_writer, policy):
                 await remote_writer.drain()
             elif mode == 'GFWlike':
                 raise RuntimeError(f'{remote_host.get()} has been banned.')
+
         while (data := await reader.read(16384)) != b'':
             remote_writer.write(data)
             await remote_writer.drain()
         logger.info('Client closed connection to %s.', remote_host.get())
+
     except Exception as e:
         logger.error('Upstream from %s: %s', remote_host.get(), repr(e))
 
@@ -52,10 +57,12 @@ async def downstream(remote_reader, writer, policy):
             return
         writer.write(data)
         await writer.drain()
+
         while (data := await remote_reader.read(16384)) != b'':
             writer.write(data)
             await writer.drain()
         logger.info('Remote server %s closed connection.', remote_host.get())
+
     except Exception as e:
         logger.error('Downstream from %s: %s', remote_host.get(), repr(e))
 
@@ -63,13 +70,15 @@ async def http_handler(reader, writer):
     remote_writer = None
     try:
         client_port.set(writer.get_extra_info('peername')[1])
-        header = await reader.readuntil(b'\r\n\r\n')
+        header = await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 5)
         request_line = header.decode('iso-8859-1').splitlines()[0]
         logger.info(request_line)
         method, path, _ = request_line.split()
+
         if path.startswith('/'):
             writer.write(b'HTTP/1.1 404 Not Found\r\n\r\n')
             await writer.drain()
+
         elif method == 'CONNECT':
             r_host, r_port = path.split(':')
             remote_host.set(r_host)
@@ -92,7 +101,9 @@ async def http_handler(reader, writer):
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
             tasks = (
-                asyncio.create_task(upstream(reader, remote_writer, policy)),
+                asyncio.create_task(
+                    upstream(reader, writer, remote_writer, policy)
+                ),
                 asyncio.create_task(downstream(remote_reader, writer, policy))
             )
             _, pending = await asyncio.wait(
@@ -101,6 +112,7 @@ async def http_handler(reader, writer):
             for task in pending:
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
+
         elif method in (
             'GET', 'POST', 'PUT', 'DELETE',
             'PATCH', 'HEAD', 'OPTIONS', 'TRACE'
@@ -117,12 +129,10 @@ async def http_handler(reader, writer):
             logger.warning('Bad request')
             writer.write(b'HTTP/1.1 400 Bad Request\r\n\r\n')
             await writer.drain()
-    except IncompleteReadError as e:
-        logger.error(
-            'Client only sent %d: %s', len(e.partial), repr(e.partial)
-        )
+
     except Exception as e:
         logger.error('HTTP handler exception for: %s', repr(e))
+
     finally:
         return remote_writer
 
@@ -146,6 +156,7 @@ async def handler(reader, writer):
             )
         else:
             raise ValueError(f'Unknown proxy type: {proxy_type}')
+
     finally:
         logger.debug('Closing writers...')
         try:
