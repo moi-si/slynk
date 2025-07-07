@@ -62,7 +62,7 @@ class ProxiedDoHClient:
             query_url = f'{self.dns_url}?dns={query_b64}'
 
             async with self.session.get(
-                query_url, params=params, headers=self.headers, proxy=self.proxy
+                query_url, params=params, headers=self.header
             ) as resp:
                 content_type = resp.headers.get('content-type')
                 if (
