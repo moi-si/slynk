@@ -321,7 +321,7 @@ def send_fake_data(
     else:
         raise Exception("Unknown OS")
 
-async def send_data_with_fake(writer, data, sni, policy):
+async def send_data_with_fake(writer, data, sni):
     try:
         if (sock := writer.get_extra_info('socket')) is None:
             raise RuntimeError('Failed to get socket of writer')
