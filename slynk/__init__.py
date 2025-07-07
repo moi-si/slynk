@@ -42,35 +42,49 @@ async def close_writers(writer, remote_writer):
     except Exception as e:
         logger.error('Failed to close writers due to %s.', repr(e))
 
-async def upstream(reader, writer, remote_writer, policy):
-    try:
-        if (data := await reader.read(16384)) == b'':
-            logger.info(
-                'Client closed connection to %s immediately.',
-                remote_host.get()
+async def read_first_packet_from_client(
+    reader, remote_reader, remote_writer, r_host, r_port
+):
+    policy = domain_policy.get()
+    if (data := await reader.read(16384)) == b'':
+        raise ConnectionError(
+            'Client closed connection to {r_host} immediately.', r_host
+        )
+    if policy.get('safety_check') and (
+        has_key_share := utils.check_key_share(data)
+    )[0] != 1:
+        await utils.send_tls_alert(writer, has_key_share[1])
+        raise ValueError('Not a TLS 1.3 connection', has_key_share)
+    if (sni := utils.extract_sni(data)) is None:
+        remote_writer.write(data)
+        await remote_writer.drain()
+    else:
+        if policy.get('BySNIfirst') and r_host != sni:
+            logger.info('Remote host has been changed to %s.', sni)
+            connection = await get_connection(
+                sni, r_port, resolver
             )
-            return
-        if policy.get('safety_check') and (
-            has_key_share := utils.check_key_share(data)
-        )[0] != 1:
-            await utils.send_tls_alert(writer, has_key_share[1])
-            raise RuntimeError('Not a TLS 1.3 connection', has_key_share[0])
-        if (sni := utils.extract_sni(data)) is None:
+            if connection is None:
+                logger.warning('New connection failed. Falling back.')
+            else:
+                remote_reader, remote_writer = connection
+                r_host = sni
+        remote_host.set(r_host)
+        mode = policy.get('mode')
+        if mode == 'TLSfrag':
+            await fragmenter.send_chunks(remote_writer, data, sni)
+        elif mode == 'FAKEdesync':
+            await fake_desync.send_data_with_fake(remote_writer, data, sni)
+        elif mode == 'DIRECT':
             remote_writer.write(data)
             await remote_writer.drain()
-        else:
-            mode = policy.get('mode')
-            if mode == 'TLSfrag':
-                await fragmenter.send_chunks(remote_writer, data, sni)
-            elif mode == 'FAKEdesync':
-                await fake_desync.send_data_with_fake(remote_writer, data, sni)
-            elif mode == 'DIRECT':
-                remote_writer.write(data)
-                await remote_writer.drain()
-            elif mode == 'GFWlike':
-                force_close.set(True)
-                raise RuntimeError(f'{remote_host.get()} has been banned.')
+        elif mode == 'GFWlike':
+            force_close.set(True)
+            raise RuntimeError(f'{r_host} has been banned.')
+    return remote_reader, remote_writer
 
+async def upstream(reader, remote_writer):
+    try:
         while (data := await reader.read(16384)) != b'':
             remote_writer.write(data)
             await remote_writer.drain()
@@ -82,11 +96,9 @@ async def upstream(reader, writer, remote_writer, policy):
 async def downstream(remote_reader, writer):
     try:
         if (data := await remote_reader.read(16384)) == b'':
-            logger.info(
-                'Remote server %s closed connection immediately.',
-                remote_host.get()
+            raise ConnectionError(
+                'Remote server {remote_host.get()} closed connection immediately.'
             )
-            return
         writer.write(data)
         await writer.drain()
 
@@ -121,13 +133,12 @@ async def http_handler(reader, writer):
                 return
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
-            remote_host.set(r_host)
-            policy = domain_policy.get()
             remote_reader, remote_writer = connection
+            remote_reader, remote_writer = await read_first_packet_from_client(
+                reader, remote_reader, remote_writer, r_host, r_port
+            )
             tasks = (
-                asyncio.create_task(
-                    upstream(reader, writer, remote_writer, policy)
-                ),
+                asyncio.create_task(upstream(reader, remote_writer)),
                 asyncio.create_task(downstream(remote_reader, writer))
             )
             _, pending = await asyncio.wait(
@@ -204,23 +215,19 @@ async def socks5_handler(reader, writer):
         port = int.from_bytes(port_bytes, 'big')
         logger.info('CONNECT %s:%d', address, port)
 
-        if (
-            connection := await get_connection(address, port, resolver)
-        ) is None:
+        if (connection := await get_connection(address, port, resolver)) is None:
             writer.write(
                 b'\x05\x01\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00'
             )
             await writer.drain()
             return
-
         writer.write(b'\x05\x00\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00')
-        remote_host.set(address)
-        policy = domain_policy.get()
         remote_reader, remote_writer = connection
+        remote_reader, remote_writer = await read_first_packet_from_client(
+            reader, remote_reader, remote_writer, address, port
+        )
         tasks = (
-            asyncio.create_task(
-                upstream(reader, writer, remote_writer, policy)
-            ),
+            asyncio.create_task(upstream(reader, remote_writer)),
             asyncio.create_task(downstream(remote_reader, writer))
         )
         _, pending = await asyncio.wait(
