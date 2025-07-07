@@ -19,7 +19,7 @@ class ProxiedDoHClient:
         'header'
     )
 
-    def __init__(self, dns_url, proxy=None):
+    def __init__(self, dns_url, proxy_type, proxy_host, proxy_port):
         self.dns_url = dns_url
         self.proxy_type = proxy_type
         self.proxy_host = proxy_host
