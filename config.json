@@ -52,15 +52,6 @@
         "*bbc.com": {
             "IP": "146.75.36.81"
         },
-        "*steampowered.com": {
-            "IP": "23.202.181.157"
-        },
-        "api.steampowered.com": {
-            "IP": "184.85.112.102"
-        },
-        "login.steampowered.com": {
-            "IP": "23.199.145.239"
-        },
         "*quora.com": {
             "IP": "104.21.3.225",
             "len_tls_sni": 3
@@ -140,7 +131,7 @@
         "upload.wikimedia.org": {
             "IP": "185.15.58.240"
         },
-        "*pixiv.(net|org)": {
+        "*pixiv.(net/org/help), i.pximg.net": {
             "len_tls_sni": 3
         },
         "*(google.com/google.com.hk/google.dev/googleapis.com/gstatic.com/googleusercontent.com/.google/goo.gl/translate.goog/android.com/ai.dev/blogger.com/chrome.com/chromium.org/golang.org/youtube.com/youtu.be/youtube-nocookie.com/.ytimg.com/.ggpht.com/gvt1.com)": {
@@ -149,12 +140,11 @@
             "safety_check": true
         },
         "*googlevideo.com": {
-            "IPtype": "ipv6"
+            "IPv6_first": true,
+            "safety_check": true
         },
         "*facebook.com": {
-            "IP": "157.240.22.169",
-            "TLSfrag": 3,
-            "TCPfrag": 5
+            "IP": "157.240.22.169"
         },
         "*instagram.com": {
             "IP": "57.144.160.34"
@@ -171,7 +161,6 @@
             "IP": "157.240.22.169",
             "len_tls_sni": 3
         },
-        "fbcdn.net": {},
         "fbsbx.com": {
             "IP": "57.144.160.1",
             "len_tls_sni": 3,
@@ -235,13 +224,17 @@
             "IP": "104.21.3.221",
             "len_tls_sni": 4
         },
-        "nav-edge.smartscreen.microsoft.com": {
-            "IP": "0.0.0.0",
-            "len_tls_sni": 4
-        },
         "cloudflare-dns.com": {
             "IP": "104.21.3.222",
             "len_tls_sni": 6
+        },
+        "*(reddit.com/redd.it/.redditstatic.com/redditmedia.com)": {
+            "IP": "146.75.49.140",
+            "len_tls_sni": 3,
+            "len_tcp_sni": 5
+        },
+        "nav-edge.smartscreen.microsoft.com": {
+            "IP": "0.0.0.0"
         },
         "tracking.miui.com": {
             "mode": "GFWlike"

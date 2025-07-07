@@ -1,10 +1,11 @@
 __version__ = '0.1.0'
 
 import asyncio
+import socket
 
 from .config import CONFIG
 from .logger_with_context import (
-    logger, client_port, domain_policy, remote_host
+    logger, client_port, domain_policy, remote_host, force_close
 )
 from .remote import get_connection
 from . import fragmenter
@@ -12,11 +13,41 @@ from . import dns_resolver
 from . import fake_desync
 from . import utils
 
+def set_socket_linger_rst(writer):
+    if (sock := writer.get_extra_info('socket')) is None:
+        logger.warning('Could not get a valid socket from writer.')
+        return
+    sock.setsockopt(
+        socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0)
+    )
+
+async def close_writers(writer, remote_writer):
+    logger.debug('Closing writers...')
+    try:
+        if force_close.get() is True:
+            if remote_writer:
+                set_socket_linger_rst(remote_writer)
+                remote_writer.transport.abort()
+            set_socket_linger_rst(writer)
+            writer.transport.abort()
+        else:
+            tasks = []
+            if remote_writer:
+                remote_writer.close()
+                tasks.append(asyncio.create_task(remote_writer.wait_closed()))
+            writer.close()
+            tasks.append(asyncio.create_task(writer.wait_closed()))
+            await asyncio.gather(*tasks, return_exceptions=True)
+        logger.debug('Closed writers successfully.')
+    except Exception as e:
+        logger.error('Failed to close writers due to %s.', repr(e))
+
 async def upstream(reader, writer, remote_writer, policy):
     try:
         if (data := await reader.read(16384)) == b'':
             logger.info(
-                'Client closed connection to %s immediately.', remote_host.get()
+                'Client closed connection to %s immediately.',
+                remote_host.get()
             )
             return
         if policy.get('safety_check') and (
@@ -37,6 +68,7 @@ async def upstream(reader, writer, remote_writer, policy):
                 remote_writer.write(data)
                 await remote_writer.drain()
             elif mode == 'GFWlike':
+                force_close.set(True)
                 raise RuntimeError(f'{remote_host.get()} has been banned.')
 
         while (data := await reader.read(16384)) != b'':
@@ -94,10 +126,7 @@ async def http_handler(reader, writer):
                 writer.write(b'HTTP/1.1 502 Bad Gateway\r\n\r\n')
                 await writer.drain()
                 return
-            if (policy := domain_policy.get()) is None:
-                raise RuntimeError(
-                    f'Failed to get policy for {remote_host.get()}'
-                )
+            policy = domain_policy.get()
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
             tasks = (
@@ -158,18 +187,7 @@ async def handler(reader, writer):
             raise ValueError(f'Unknown proxy type: {proxy_type}')
 
     finally:
-        logger.debug('Closing writers...')
-        try:
-            tasks = []
-            if remote_writer:
-                remote_writer.close()
-                tasks.append(asyncio.create_task(remote_writer.wait_closed()))
-            writer.close()
-            tasks.append(asyncio.create_task(writer.wait_closed()))
-            await asyncio.gather(*tasks, return_exceptions=True)
-            logger.debug('Closed writers successfully.')
-        except Exception as e:
-            logger.error('Failed to close writers due to %s.', repr(e))
+        await close_writers(writer, remote_writer)
 
 async def main():
     global resolver

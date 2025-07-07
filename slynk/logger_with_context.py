@@ -6,7 +6,7 @@ from .config import CONFIG
 client_port = contextvars.ContextVar('client_port', default='?')
 domain_policy = contextvars.ContextVar('domain_policy', default=None)
 remote_host = contextvars.ContextVar('remote_host', default=None)
-# sni = contextvars.ContextVar('sni', default=None)
+force_close = contextvars.ContextVar('force_close', default=False)
 
 class CustomLogRecord(logging.LogRecord):
     def __init__(self, *args, **kwargs):
