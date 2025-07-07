@@ -39,12 +39,11 @@ def redirect(ip):
 async def get_connection(host, port, dns_resolver, protocol=6):
     policy = {**default_policy, **match_domain(host)}
     domain_policy.set(policy)
-    policy.setdefault('port', 443)
-    port = policy['port']
-    if utils.is_ip_address(host):
-        ip = host
-    elif policy.get('IP'):
+    old_port, port = port, policy.setdefault('port', 443)
+    if policy.get('IP'):
         ip = policy['IP']
+    elif utils.is_ip_address(host):
+        ip = host
     elif DNS_cache.get(host):
         ip = DNS_cache[host]
         logger.info('DNS cache for %s is %s.', host, ip)
@@ -95,10 +94,17 @@ async def get_connection(host, port, dns_resolver, protocol=6):
 
     logger.info('%s --> %s', host, policy)
     if protocol == 6:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(ip, port), timeout=30
-        )
-        return reader, writer
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(ip, port), timeout=30
+            )
+            return reader, writer
+        except Exception as e:
+            logger.error(
+                'Failed to connect to %s:%d(%s:%d) due to %s.',
+                host, old_port, ip, port, repr(e)
+            )
+            return None
     elif protocol == 17:
         raise NotImplementedError('UDP is not supported yet.')
     else:

@@ -1,22 +1,47 @@
 import base64
 import asyncio
-import aiohttp
 import dns.message
 import dns.rdatatype
+import aiohttp
+from aiohttp_socks import ProxyConnector, ProxyType
 
 from .logger_with_context import logger
 logger = logger.getChild('dns_resolver')
 
 
-class Resolver:
+class ProxiedDoHClient:
+    __slots__ = (
+        'dns_url',
+        'proxy_type',
+        'proxy_host',
+        'proxy_port',
+        'session',
+        'header'
+    )
+
     def __init__(self, dns_url, proxy=None):
         self.dns_url = dns_url
-        self.proxy = proxy
+        self.proxy_type = proxy_type
+        self.proxy_host = proxy_host
+        self.proxy_port = proxy_port
         self.session = None
-        self.headers = {'Accept': 'application/dns-message'}
+        self.header = {'Accept': 'application/dns-message'}
 
     async def init_session(self):
-        self.session = aiohttp.ClientSession()
+        if self.proxy_type == 'socks5':
+            proxy_type = ProxyType.SOCKS5
+        elif self.proxy_type == 'http':
+            proxy_type = ProxyType.HTTP
+        else:
+            raise ValueError(f'Invalid proxy type: {self.proxy_type}')
+
+        connector = ProxyConnector(
+            proxy_type=proxy_type,
+            host=self.proxy_host,
+            port=self.proxy_port,
+            rdns=True
+        )
+        self.session = aiohttp.ClientSession(connector=connector)
 
     async def close_session(self):
         if self.session:
@@ -59,7 +84,5 @@ class Resolver:
                     return None
 
         except Exception as e:
-            logger.error(
-                'While resolving %s: %s', domain, repr(e), exc_info=True
-            )
+            logger.error('While resolving %s: %s', domain, repr(e))
             return None

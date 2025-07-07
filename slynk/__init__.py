@@ -7,9 +7,9 @@ from .config import CONFIG
 from .logger_with_context import (
     logger, client_port, domain_policy, remote_host, force_close
 )
+from . import dns_resolver
 from .remote import get_connection
 from . import fragmenter
-from . import dns_resolver
 from . import fake_desync
 from . import utils
 
@@ -100,40 +100,35 @@ async def downstream(remote_reader, writer, policy):
 
 async def http_handler(reader, writer):
     remote_writer = None
+    client_port.set(writer.get_extra_info('peername')[1])
+
     try:
-        client_port.set(writer.get_extra_info('peername')[1])
         header = await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 5)
         request_line = header.decode('iso-8859-1').splitlines()[0]
         logger.info(request_line)
         method, path, _ = request_line.split()
 
         if path.startswith('/'):
-            writer.write(b'HTTP/1.1 404 Not Found\r\n\r\n')
+            writer.write(b'HTTP/1.1 403 Forbidden\r\n\r\n')
             await writer.drain()
 
         elif method == 'CONNECT':
             r_host, r_port = path.split(':')
-            remote_host.set(r_host)
-            try:
-                remote_reader, remote_writer = await get_connection(
-                    r_host, int(r_port), resolver
-                )
-            except Exception as e:
-                logger.error(
-                    'Failed to connect to %s:%s due to %s',
-                    r_host, r_port, repr(e)
-                )
+            connection = await get_connection(r_host, int(r_port), resolver)
+            if connection is None:
                 writer.write(b'HTTP/1.1 502 Bad Gateway\r\n\r\n')
                 await writer.drain()
                 return
-            policy = domain_policy.get()
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
+            remote_host.set(r_host)
+            policy = domain_policy.get()
+            remote_reader, remote_writer = connection
             tasks = (
                 asyncio.create_task(
                     upstream(reader, writer, remote_writer, policy)
                 ),
-                asyncio.create_task(downstream(remote_reader, writer, policy))
+                asyncio.create_task(downstream(remote_reader, writer))
             )
             _, pending = await asyncio.wait(
                 tasks, return_when=asyncio.FIRST_COMPLETED
@@ -154,45 +149,112 @@ async def http_handler(reader, writer):
             )
             writer.write(message.encode('iso-8859-1'))
             await writer.drain()
+
         else:
             logger.warning('Bad request')
             writer.write(b'HTTP/1.1 400 Bad Request\r\n\r\n')
             await writer.drain()
 
     except Exception as e:
-        logger.error('HTTP handler exception for: %s', repr(e))
+        logger.error('HTTP Handler exception for: %s', repr(e))
 
     finally:
-        return remote_writer
+        await close_writers(writer, remote_writer)
 
 async def socks5_handler(reader, writer):
-    pass
-
-async def handler(reader, writer):
     remote_writer = None
-    proxy_type = CONFIG.get('proxy_type')
+    client_port.set(writer.get_extra_info('peername')[1])
+    read = lambda l: asyncio.wait_for(reader.readexactly(l), 3)
+
     try:
-        if proxy_type == 'http':
-            remote_writer = await http_handler(reader, writer)
-        elif proxy_type == 'socks5':
-            # remote_writer = await socks5_handler(reader, writer)
-            raise NotImplementedError('SOCKS5 is not supported yet.')
-        elif proxy_type is None:
-            logger.error(
-                'Proxy type not specified. '
-                'Please set the `proxy_type` field ("http" or "socks5")'
-                'in `config.json`.'
+        ver = await read(1)
+        if ver != b'\x05':
+            raise ValueError('Not SOCKS5', ver)
+
+        nmethods = (await read(1))[0]
+        methods = await read(nmethods)
+
+        if 0x00 not in methods:
+            raise ValueError(
+                'No "no authentication required" method is provided'
             )
+
+        writer.write(b'\x05\x00') 
+        await writer.drain()
+
+        ver, cmd, _, atyp = await read(4)
+        if ver != 0x05:
+            raise ValueError(f'Invalid protocol version', ver)
+        if cmd != 0x01:  # Only CONNECT
+            raise ValueError(f'Unsupported CMD', cmd)
+
+        if atyp == 0x01:  # IPv4
+            ip_bytes = await read(4)
+            address = socket.inet_ntop(socket.AF_INET, ip_bytes)
+        elif atyp == 0x03:  # Domain name
+            domain_length = (await read(1))[0]
+            address = (await read(domain_length)).decode()
+        elif atyp == 0x04:  # IPv6
+            ip_bytes = await read(16)
+            address = socket.inet_ntop(socket.AF_INET6, ip_bytes)
         else:
-            raise ValueError(f'Unknown proxy type: {proxy_type}')
+            raise ValueError(f"Invalid address type", atyp)
+
+        port_bytes = await read(2)
+        port = int.from_bytes(port_bytes, 'big')
+        logger.info('CONNECT %s:%d', address, port)
+
+        if (
+            connection := await get_connection(address, port, resolver)
+        ) is None:
+            writer.write(
+                b'\x05\x01\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00'
+            )
+            await writer.drain()
+            return
+
+        writer.write(b'\x05\x00\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00')
+        remote_host.set(address)
+        policy = domain_policy.get()
+        remote_reader, remote_writer = connection
+        tasks = (
+            asyncio.create_task(
+                upstream(reader, writer, remote_writer, policy)
+            ),
+            asyncio.create_task(downstream(remote_reader, writer))
+        )
+        _, pending = await asyncio.wait(
+            tasks, return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+    except Exception as e:
+        logger.error('SOCKS5 Handler exception for: %s', repr(e))
 
     finally:
         await close_writers(writer, remote_writer)
 
 async def main():
+    proxy_type = CONFIG.get('proxy_type')
+    if proxy_type == 'http':
+        handler = http_handler
+    elif proxy_type == 'socks5':
+        handler = socks5_handler
+    elif proxy_type is None:
+        logger.error(
+            'Proxy type not specified. '
+            'Please set the `proxy_type` field ("http" or "socks5")'
+            'in `config.json`.'
+        )
+        return
+    else:
+        raise ValueError(f'Unknown proxy type: {proxy_type}')
+
     global resolver
-    resolver = dns_resolver.Resolver(
-        CONFIG['DNS_URL'], f"http://127.0.0.1:{CONFIG['port']}"
+    resolver = dns_resolver.ProxiedDoHClient(
+        CONFIG['DNS_URL'], CONFIG['proxy_type'], '127.0.0.1', CONFIG['port']
     )
     await resolver.init_session()
 
@@ -200,7 +262,7 @@ async def main():
     server = await asyncio.start_server(
         handler, '127.0.0.1', CONFIG['port']
     )
-    print(f"Ready at 127.0.0.1:{CONFIG['port']}")
+    print(f"Ready at {proxy_type}://127.0.0.1:{CONFIG['port']}")
 
     try:
         async with server:
