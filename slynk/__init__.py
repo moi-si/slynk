@@ -67,6 +67,7 @@ async def read_first_packet_from_client(
             if connection is None:
                 logger.warning('New connection failed. Falling back.')
             else:
+                remote_writer.transport.abort()
                 remote_reader, remote_writer = connection
                 r_host = sni
         remote_host.set(r_host)
