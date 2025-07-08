@@ -71,7 +71,7 @@ async def close_writers(writer, remote_writer):
         logger.error('Failed to close writers due to %s.', repr(e))
 
 async def read_client_hello(
-    reader, remote_reader, remote_writer, r_host, r_port
+    reader, writer, remote_reader, remote_writer, r_host, r_port
 ):
     policy = domain_policy.get()
     if (data := await reader.read(16384)) == b'':
@@ -119,7 +119,10 @@ async def upstream(reader, remote_writer):
         logger.info('Client closed connection to %s.', remote_host.get())
 
     except Exception as e:
-        logger.error('Upstream from %s: %s', remote_host.get(), repr(e))
+        logger.error(
+            'Upstream from %s: %s',
+            remote_host.get(), repr(e), exc_info=True
+        )
 
 async def downstream(remote_reader, writer):
     try:
@@ -136,7 +139,10 @@ async def downstream(remote_reader, writer):
         logger.info('Remote server %s closed connection.', remote_host.get())
 
     except Exception as e:
-        logger.error('Downstream from %s: %s', remote_host.get(), repr(e))
+        logger.error(
+            'Downstream from %s: %s',
+            remote_host.get(), repr(e), exc_info=True
+        )
 
 async def http_handler(reader, writer):
     remote_writer = None
@@ -167,7 +173,7 @@ async def http_handler(reader, writer):
             await writer.drain()
             remote_reader, remote_writer = connection
             remote_reader, remote_writer = await read_client_hello(
-                reader, remote_reader, remote_writer, r_host, r_port
+                reader, writer, remote_reader, remote_writer, r_host, r_port
             )
             tasks = (
                 asyncio.create_task(upstream(reader, remote_writer)),
@@ -199,7 +205,10 @@ async def http_handler(reader, writer):
             await writer.drain()
 
     except Exception as e:
-        logger.error('HTTP Handler exception for: %s', repr(e))
+        logger.error(
+            'HTTP Handler exception for: %s',
+            repr(e), exc_info=True
+        )
 
     finally:
         await close_writers(writer, remote_writer)
@@ -258,7 +267,7 @@ async def socks5_handler(reader, writer):
         writer.write(b'\x05\x00\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00')
         remote_reader, remote_writer = connection
         remote_reader, remote_writer = await read_client_hello(
-            reader, remote_reader, remote_writer, address, port
+            reader, writer, remote_reader, remote_writer, address, port
         )
         tasks = (
             asyncio.create_task(upstream(reader, remote_writer)),
@@ -272,7 +281,10 @@ async def socks5_handler(reader, writer):
         await asyncio.gather(*pending, return_exceptions=True)
 
     except Exception as e:
-        logger.error('SOCKS5 Handler exception for: %s', repr(e))
+        logger.error(
+            'SOCKS5 Handler exception for: %s',
+            repr(e), exc_info=True
+        )
 
     finally:
         await close_writers(writer, remote_writer)

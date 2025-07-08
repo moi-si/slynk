@@ -36,7 +36,7 @@ def redirect(ip):
         return mapped_ip[1:]
     return redirect(mapped_ip)
 
-async def get_connection(host, port, dns_resolver, protocol=6):
+async def get_connection(host, port, dns_query, protocol=6):
     policy = {**default_policy, **match_domain(host)}
     domain_policy.set(policy)
     old_port, port = port, policy.setdefault('port', 443)
@@ -50,16 +50,16 @@ async def get_connection(host, port, dns_resolver, protocol=6):
     else:
         if policy.get('IPv6_first'):
             try:
-                ip = await dns_resolver.resolve(host, 'AAAA')
+                ip = await dns_query(host, 'AAAA')
             except Exception:
                 logger.warning('Failed to resolve %s via IPv6. Trying IPv4.')
-                ip = await dns_resolver.resolve(host, 'A')
+                ip = await dns_query(host, 'A')
         else:
             try:
-                ip = await dns_resolver.resolve(host, 'A')
+                ip = await dns_query(host, 'A')
             except Exception:
                 logger.warning('Failed to resolve %s via IPv4. Trying IPv6.')
-                ip = await dns_resolver.resolve(host, 'AAAA')
+                ip = await dns_query(host, 'AAAA')
         if ip is None:
             raise RuntimeError(f'Failed to resolve {host}.')
         elif policy.get('DNS_cache'):
