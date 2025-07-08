@@ -76,7 +76,7 @@ async def read_client_hello(
     policy = domain_policy.get()
     if (data := await reader.read(16384)) == b'':
         raise ConnectionError(
-            'Client closed connection to {r_host} immediately.', r_host
+            f'Client closed connection to {r_host} immediately.'
         )
     if policy.get('safety_check') and (
         has_key_share := utils.check_key_share(data)
@@ -119,10 +119,7 @@ async def upstream(reader, remote_writer):
         logger.info('Client closed connection to %s.', remote_host.get())
 
     except Exception as e:
-        logger.error(
-            'Upstream from %s: %s',
-            remote_host.get(), repr(e), exc_info=True
-        )
+        logger.error('Upstream from %s: %s',remote_host.get(), repr(e))
 
 async def downstream(remote_reader, writer):
     try:
@@ -139,17 +136,14 @@ async def downstream(remote_reader, writer):
         logger.info('Remote server %s closed connection.', remote_host.get())
 
     except Exception as e:
-        logger.error(
-            'Downstream from %s: %s',
-            remote_host.get(), repr(e), exc_info=True
-        )
+        logger.error('Downstream from %s: %s', remote_host.get(), repr(e))
 
 async def http_handler(reader, writer):
     remote_writer = None
     client_port.set(writer.get_extra_info('peername')[1])
 
     try:
-        header = await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 3)
+        header = await reader.readuntil(b'\r\n\r\n')
         request_line = header.decode('iso-8859-1').splitlines()[0]
         logger.info(request_line)
         method, path, _ = request_line.split()
@@ -205,10 +199,7 @@ async def http_handler(reader, writer):
             await writer.drain()
 
     except Exception as e:
-        logger.error(
-            'HTTP Handler exception for: %s',
-            repr(e), exc_info=True
-        )
+        logger.error('HTTP Handler exception for: %s', repr(e))
 
     finally:
         await close_writers(writer, remote_writer)
@@ -216,15 +207,14 @@ async def http_handler(reader, writer):
 async def socks5_handler(reader, writer):
     remote_writer = None
     client_port.set(writer.get_extra_info('peername')[1])
-    read = lambda l: asyncio.wait_for(reader.readexactly(l), 3)
 
     try:
-        ver = await read(1)
+        ver = await reader.readexactly(1)
         if ver != b'\x05':
             raise ValueError('Not SOCKS5', ver)
 
-        nmethods = (await read(1))[0]
-        methods = await read(nmethods)
+        nmethods = (reader.readexactly(1))[0]
+        methods = await reader.readexactly(nmethods)
 
         if 0x00 not in methods:
             raise ValueError(
@@ -234,25 +224,25 @@ async def socks5_handler(reader, writer):
         writer.write(b'\x05\x00') 
         await writer.drain()
 
-        ver, cmd, _, atyp = await read(4)
+        ver, cmd, _, atyp = await reader.readexactly(4)
         if ver != 0x05:
             raise ValueError(f'Invalid protocol version', ver)
         if cmd != 0x01:  # Only CONNECT
             raise ValueError(f'Unsupported CMD', cmd)
 
         if atyp == 0x01:  # IPv4
-            ip_bytes = await read(4)
+            ip_bytes = await reader.readexactly(4)
             address = socket.inet_ntop(socket.AF_INET, ip_bytes)
         elif atyp == 0x03:  # Domain name
-            domain_length = (await read(1))[0]
-            address = (await read(domain_length)).decode()
+            domain_length = (await reader.readexactly(1))[0]
+            address = (await reader.readexactly(domain_length)).decode()
         elif atyp == 0x04:  # IPv6
-            ip_bytes = await read(16)
+            ip_bytes = await reader.readexactly(16)
             address = socket.inet_ntop(socket.AF_INET6, ip_bytes)
         else:
             raise ValueError(f"Invalid address type", atyp)
 
-        port_bytes = await read(2)
+        port_bytes = await reader.readexactly(2)
         port = int.from_bytes(port_bytes, 'big')
         logger.info('CONNECT %s:%d', address, port)
 
@@ -265,6 +255,7 @@ async def socks5_handler(reader, writer):
             await writer.drain()
             return
         writer.write(b'\x05\x00\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00')
+        await writer.drain()
         remote_reader, remote_writer = connection
         remote_reader, remote_writer = await read_client_hello(
             reader, writer, remote_reader, remote_writer, address, port
@@ -281,10 +272,7 @@ async def socks5_handler(reader, writer):
         await asyncio.gather(*pending, return_exceptions=True)
 
     except Exception as e:
-        logger.error(
-            'SOCKS5 Handler exception for: %s',
-            repr(e), exc_info=True
-        )
+        logger.error('SOCKS5 Handler exception for: %s', repr(e))
 
     finally:
         await close_writers(writer, remote_writer)
