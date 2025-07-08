@@ -2,8 +2,9 @@ __version__ = '0.2.0'
 
 import asyncio
 import socket
+import os
 
-from .config import CONFIG
+from .config import CONFIG, basepath
 from .logger_with_context import (
     logger, client_port, domain_policy, remote_host, force_close
 )
@@ -20,6 +21,33 @@ def set_socket_linger_rst(writer):
     sock.setsockopt(
         socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0)
     )
+
+def make_pac_resp():
+    global PAC_RESP
+    try:
+        if os.path.exists('proxy.pac'):
+            pac_path = 'proxy.pac'
+        elif os.path.exists(path := os.path.join(basepath, 'proxy.pac')):
+            pac_path = path
+        else:
+            raise FileNotFoundError('PAC file not found')
+        with open(pac_path, 'rb') as f:
+            pac_file = f.read().replace(
+                b'{{port}}', str(CONFIG['port']).encode('iso-8859-1')
+            )
+            PAC_RESP = (
+                'HTTP/1.1 200 OK\r\n'
+                'Content_Type:application/x-ns-proxy-autoconfig\r\n'
+                f'Content_Length: {len(pac_file)}\r\n\r\n'.encode('iso-8859-1')
+                + pac_file
+            )
+            print('PAC is ready.')
+    except Exception as e:
+        print(
+            f'Failed to make PAC response due to {repr(e)}.',
+            'Server will start, but the PAC file will not be served.'
+        )
+        PAC_RESP = b'HTTP/1.1 404 Not Found\r\n\r\n'
 
 async def close_writers(writer, remote_writer):
     logger.debug('Closing writers...')
@@ -42,7 +70,7 @@ async def close_writers(writer, remote_writer):
     except Exception as e:
         logger.error('Failed to close writers due to %s.', repr(e))
 
-async def read_first_packet_from_client(
+async def read_client_hello(
     reader, remote_reader, remote_writer, r_host, r_port
 ):
     policy = domain_policy.get()
@@ -67,7 +95,6 @@ async def read_first_packet_from_client(
             if connection is None:
                 logger.warning('New connection failed. Falling back.')
             else:
-                remote_writer.transport.abort()
                 remote_reader, remote_writer = connection
                 r_host = sni
         remote_host.set(r_host)
@@ -116,12 +143,16 @@ async def http_handler(reader, writer):
     client_port.set(writer.get_extra_info('peername')[1])
 
     try:
-        header = await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 5)
+        header = await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 3)
         request_line = header.decode('iso-8859-1').splitlines()[0]
         logger.info(request_line)
         method, path, _ = request_line.split()
 
-        if path.startswith('/'):
+        if path == '/proxy.pac':
+            writer.write(PAC_RESP)
+            await writer.drain()
+
+        elif path.startswith('/'):
             writer.write(b'HTTP/1.1 403 Forbidden\r\n\r\n')
             await writer.drain()
 
@@ -135,7 +166,7 @@ async def http_handler(reader, writer):
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
             remote_reader, remote_writer = connection
-            remote_reader, remote_writer = await read_first_packet_from_client(
+            remote_reader, remote_writer = await read_client_hello(
                 reader, remote_reader, remote_writer, r_host, r_port
             )
             tasks = (
@@ -224,7 +255,7 @@ async def socks5_handler(reader, writer):
             return
         writer.write(b'\x05\x00\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00')
         remote_reader, remote_writer = connection
-        remote_reader, remote_writer = await read_first_packet_from_client(
+        remote_reader, remote_writer = await read_client_hello(
             reader, remote_reader, remote_writer, address, port
         )
         tasks = (
@@ -247,6 +278,7 @@ async def socks5_handler(reader, writer):
 async def main():
     proxy_type = CONFIG.get('proxy_type')
     if proxy_type == 'http':
+        make_pac_resp()
         handler = http_handler
     elif proxy_type == 'socks5':
         handler = socks5_handler
