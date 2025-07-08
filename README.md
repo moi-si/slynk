@@ -25,4 +25,4 @@ Slynk is a lightweight, local relay written in Python 3.8+ using asyncio.
 - [x] SOCKS5
 - [x] PAC
 - [x] BySNIfirst
-- [ ] Local DNS over UDP/TCP
+- [x] DNS over UDP/TCP

@@ -8,11 +8,11 @@ from .config import CONFIG, basepath
 from .logger_with_context import (
     logger, client_port, domain_policy, remote_host, force_close
 )
-from . import dns_resolver
 from .remote import get_connection
 from . import fragmenter
 from . import fake_desync
 from . import utils
+
 
 def set_socket_linger_rst(writer):
     if (sock := writer.get_extra_info('socket')) is None:
@@ -158,7 +158,7 @@ async def http_handler(reader, writer):
 
         elif method == 'CONNECT':
             r_host, r_port = path.split(':')
-            connection = await get_connection(r_host, int(r_port), resolver)
+            connection = await get_connection(r_host, int(r_port), dns_query)
             if connection is None:
                 writer.write(b'HTTP/1.1 502 Bad Gateway\r\n\r\n')
                 await writer.drain()
@@ -247,7 +247,9 @@ async def socks5_handler(reader, writer):
         port = int.from_bytes(port_bytes, 'big')
         logger.info('CONNECT %s:%d', address, port)
 
-        if (connection := await get_connection(address, port, resolver)) is None:
+        if (
+            connection := await get_connection(address, port, dns_query)
+        ) is None:
             writer.write(
                 b'\x05\x01\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00'
             )
@@ -292,11 +294,27 @@ async def main():
     else:
         raise ValueError(f'Unknown proxy type: {proxy_type}')
 
-    global resolver
-    resolver = dns_resolver.ProxiedDoHClient(
-        CONFIG['DNS_URL'], CONFIG['proxy_type'], '127.0.0.1', CONFIG['port']
-    )
-    await resolver.init_session()
+    global dns_query
+    if CONFIG['DNS_URL'].startswith('https://'):
+        doh = True
+        from . import doh_extension
+        resolver = doh_extension.ProxiedDoHClient(
+            CONFIG['DNS_URL'], CONFIG['proxy_type'], '127.0.0.1', CONFIG['port']
+        )
+        await resolver.init_session()
+        dns_query = resolver.resolve
+    else:
+        import dns.asyncresolver, dns.nameserver
+        doh = False
+        address, port = CONFIG['DNS_URL'].split(':')
+        resolver = dns.asyncresolver.Resolver(configure=False)
+        resolver.nameservers.append(
+            dns.nameserver.Do53Nameserver(address, int(port))
+        )
+        async def dns_query(domain, qtype):
+            result = await resolver.resolve(domain, qtype)
+            return result[0].to_text()
+    print('DNS resolver is ready.')
 
     print(f'Slynk v{__version__} - A lightweight local relay')
     server = await asyncio.start_server(
@@ -310,5 +328,6 @@ async def main():
     except KeyboardInterrupt:
         print('\nShutting down...')
     finally:
-        await resolver.close_session()
+        if doh:
+            await resolver.close_session()
         print('\nExited.')
