@@ -66,7 +66,9 @@ def check_ttl(ip, port, ttl):
         sock.send(b"0")
         return True
     except Exception as e:
-        logger.error('TTL %d for %s:%d failed due to %s', ip, port, repr(e))
+        logger.error(
+            'TTL %d for %s:%d failed due to %s', ttl, ip, port, repr(e)
+        )
         return False
     finally:
         sock.close()
