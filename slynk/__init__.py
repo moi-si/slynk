@@ -119,7 +119,7 @@ async def upstream(reader, remote_writer):
         logger.info('Client closed connection to %s.', remote_host.get())
 
     except Exception as e:
-        logger.error('Upstream from %s: %s',remote_host.get(), repr(e))
+        logger.error('Upstream from %s: %s', remote_host.get(), repr(e))
 
 async def downstream(remote_reader, writer):
     try:
@@ -199,7 +199,7 @@ async def http_handler(reader, writer):
             await writer.drain()
 
     except Exception as e:
-        logger.error('HTTP Handler exception for: %s', repr(e))
+        logger.error('HTTP Handler exception for: %s',repr(e))
 
     finally:
         await close_writers(writer, remote_writer)
@@ -213,7 +213,7 @@ async def socks5_handler(reader, writer):
         if ver != b'\x05':
             raise ValueError('Not SOCKS5', ver)
 
-        nmethods = (reader.readexactly(1))[0]
+        nmethods = (await reader.readexactly(1))[0]
         methods = await reader.readexactly(nmethods)
 
         if 0x00 not in methods:
