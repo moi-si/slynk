@@ -25,7 +25,8 @@
         "172.64.0.0/13": "^104.21.3.225",
         "162.158.0.0/15": "^104.21.3.226",
         "2606:4700::/32": "^104.21.57.162",
-        "2400:cb00::/32": "^104.21.3.224"
+        "2400:cb00::/32": "^104.21.3.224",
+        "188.114.96.0/20": "104.18.3.226"
     },
     "domain_policies": {
         "streaming.mastodon.social": {},
@@ -140,8 +141,7 @@
             "safety_check": true
         },
         "*googlevideo.com": {
-            "IPv6_first": true,
-            "safety_check": true
+            "IP": "0.0.0.0"
         },
         "*facebook.com": {
             "IP": "157.240.22.169"
@@ -233,7 +233,7 @@
             "len_tls_sni": 3,
             "len_tcp_sni": 5
         },
-        "nav-edge.smartscreen.microsoft.com": {
+        "nav-edge.smartscreen.microsoft.com, collector.github.com": {
             "IP": "0.0.0.0"
         },
         "tracking.miui.com": {
@@ -241,6 +241,9 @@
         },
         "*example.com, www.fbi.gov":{
             "mode": "DIRECT"
+        },
+       "*ooni.org": {
+           "mode": "FAKEdesync"
         }
     }
 }
