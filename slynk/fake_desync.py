@@ -390,4 +390,4 @@ async def send_data_with_fake(writer, data, sni):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
 
     except Exception as e:
-        logger.error('%s', repr(e))
+        logger.error(repr(e), exc_info=True)
