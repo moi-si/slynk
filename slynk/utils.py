@@ -67,7 +67,7 @@ def check_ttl(ip, port, ttl):
         return True
     except Exception as e:
         logger.error(
-            'TTL %d for %s:%d failed due to %s', ttl, ip, port, repr(e)
+            'TTL %d for %s:%d failed due to %s.', ttl, ip, port, repr(e)
         )
         return False
     finally:
@@ -203,7 +203,7 @@ def check_key_share(data):
 
         # Skip fixed fields: protocol version (2 bytes) + random (32 bytes).
         if len(hello_body) < 34:
-            return 0
+            return 0, protocol_version
         protocol_version = hello_body[:2]
         offset += 34
 
