@@ -1,6 +1,6 @@
 *Forked from [TlsFragment](https://github.com/maoist2009/TlsFragment)*
-# Slynk
-Slynk is a lightweight, local relay written in Python 3.8+ using asyncio. *Note: It may use more memory than TlsFragment.*
+# slynk
+slynk is a lightweight, local relay written in Python 3.8+ using asyncio. *Note: It may use more memory than TlsFragment.*
 ## How to start
 1. Make sure Python 3.8+ or newer installed.
 2. Clone this repository:
@@ -20,7 +20,7 @@ Slynk is a lightweight, local relay written in Python 3.8+ using asyncio. *Note:
    python slynk.py
    ```
 ## How to use
-I'm too lazy to write documentation. Please read the source code or check [DeepWiki](https://deepwiki.com/moi-si/Slynk) for auto-generated docs (updated every 7 days).
+I'm too lazy to write documentation. Please read the source code or check [DeepWiki](https://deepwiki.com/moi-si/slynk) for auto-generated docs (updated every 7 days).
 ## To-do
 - [x] TLSfrag
 - [x] FAKEdesync
