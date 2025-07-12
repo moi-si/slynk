@@ -70,7 +70,7 @@ async def close_writers(writer, remote_writer):
     except Exception as e:
         logger.error('Failed to close writers due to %s.', repr(e))
 
-async def read_client_hello(
+async def send_client_hello(
     reader, writer, remote_reader, remote_writer, r_host, r_port
 ):
     policy = domain_policy.get()
@@ -87,16 +87,17 @@ async def read_client_hello(
         remote_writer.write(data)
         await remote_writer.drain()
     else:
-        if policy.get('BySNIfirst') and r_host != sni:
-            logger.info('Remote host has been changed to %s.', sni)
+        if policy.get('BySNIfirst') and r_host != (sni_str := sni.decode()):
+            logger.info('Remote host has been changed to %s.', sni_str)
             connection = await get_connection(
-                sni, r_port, resolver
+                sni_str, r_port, resolver
             )
             if connection is None:
                 logger.warning('New connection failed. Falling back.')
             else:
+                remote_writer.transport.abort()
                 remote_reader, remote_writer = connection
-                r_host = sni
+                r_host = sni_str
         remote_host.set(r_host)
         mode = policy.get('mode')
         if mode == 'TLSfrag':
@@ -166,7 +167,7 @@ async def http_handler(reader, writer):
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
             remote_reader, remote_writer = connection
-            remote_reader, remote_writer = await read_client_hello(
+            remote_reader, remote_writer = await send_client_hello(
                 reader, writer, remote_reader, remote_writer, r_host, r_port
             )
             tasks = (
@@ -257,7 +258,7 @@ async def socks5_handler(reader, writer):
         writer.write(b'\x05\x00\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00')
         await writer.drain()
         remote_reader, remote_writer = connection
-        remote_reader, remote_writer = await read_client_hello(
+        remote_reader, remote_writer = await send_client_hello(
             reader, writer, remote_reader, remote_writer, address, port
         )
         tasks = (
