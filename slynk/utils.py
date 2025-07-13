@@ -20,7 +20,7 @@ async def to_thread(func, /, *args, **kwargs):
     func_call = functools.partial(ctx.run, func, *args, **kwargs)
     return await loop.run_in_executor(None, func_call)
 
-def ip_to_binary_prefix(ip_or_network):
+def ip_to_binary_prefix(ip_or_network: str):
     try:
         network = ipaddress.ip_network(ip_or_network, strict=False)
         network_address = network.network_address
@@ -52,7 +52,7 @@ def set_ttl(sock, ttl):
     else:
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
 
-def check_ttl(ip, port, ttl):
+def check_ttl(ip: str, port: int, ttl: int) -> bool:
     from .logger_with_context import logger
     logger = logger.getChild("utils")
     try:
@@ -73,7 +73,7 @@ def check_ttl(ip, port, ttl):
     finally:
         sock.close()
 
-def get_ttl(ip, port):
+def get_ttl(ip: str, port: int) -> int:
     from .logger_with_context import logger
     logger = logger.getChild("utils")
     l = 1
@@ -92,179 +92,138 @@ def get_ttl(ip, port):
     logger.info("TTL %d is reachable on %s:%d.", ans, ip, port)
     return ans
 
-def is_ip_address(s):
+def is_ip_address(s: str) -> bool:
     try:
         ipaddress.ip_address(s)
         return True
     except ValueError:
         return False
 
-def extract_sni(data):
-    """
-    extract sni
-    data: the tls data.
-    """
-    # 解析TLS记录
-    content_type, _, _, length = struct.unpack(">BBBH", data[:5])
-    if content_type != 0x16:  # 0x16表示TLS Handshake
-        raise ValueError("Not a TLS Handshake message")
-    handshake_data = data[5 : 5 + length]
+def extract_sni(data: bytes):
+    if len(data) < 5:
+        return None
+    content_type = data[0]
+    length = struct.unpack_from(">H", data, 3)[0]
+    if content_type != 0x16 or len(data) < 5 + length:
+        return None
 
-    # 解析握手消息头
-    handshake_type, tmp, length = struct.unpack(">BBH", handshake_data[:4])
-    length = tmp * 64 + length
-    if handshake_type != 0x01:  # 0x01表示Client Hello
-        raise ValueError("Not a Client Hello message")
-    client_hello_data = handshake_data[4 : 4 + length]
-
-    # 解析Client Hello消息
-    _, _, _, session_id_length = struct.unpack(">BB32sB", client_hello_data[:35])
-    cipher_suites_length = struct.unpack(
-        ">H", client_hello_data[35 + session_id_length : 35 + session_id_length + 2]
-    )[0]
-    compression_methods_length = struct.unpack(
-        ">B",
-        client_hello_data[
-            35
-            + session_id_length
-            + 2
-            + cipher_suites_length : 35
-            + session_id_length
-            + 2
-            + cipher_suites_length
-            + 1
-        ],
-    )[0]
-
-    # 定位扩展部分
-    extensions_offset = (
-        35
-        + session_id_length
-        + 2
-        + cipher_suites_length
-        + 1
-        + compression_methods_length
+    handshake_data = memoryview(data)[5:5 + length]
+    if len(handshake_data) < 4:
+        return None
+    handshake_type = handshake_data[0]
+    hello_length = (
+        handshake_data[1] * 2 ** 16
+        + struct.unpack_from(">H", handshake_data, 2)[0]
     )
-    extensions_length = struct.unpack(
-        ">H", client_hello_data[extensions_offset : extensions_offset + 2]
-    )[0]
-    extensions_data = client_hello_data[
-        extensions_offset + 2 : extensions_offset + 2 + extensions_length
-    ]
+    if handshake_type != 0x01 or len(handshake_data) < 4 + hello_length:
+        return None
 
-    offset = 0
-    while offset < extensions_length:
-        extension_type, extension_length = struct.unpack(
-            ">HH", extensions_data[offset : offset + 4]
-        )
-        if extension_type == 0x0000:  # SNI扩展的类型是0x0000
-            sni_extension = extensions_data[offset + 4 : offset + 4 + extension_length]
-            # 解析SNI扩展
-            list_length = struct.unpack(">H", sni_extension[:2])[0]
-            if list_length != 0:
-                name_type, name_length = struct.unpack(">BH", sni_extension[2:5])
-                if name_type == 0:  # 域名类型
-                    sni = sni_extension[5 : 5 + name_length]
-                    return sni
-        offset += 4 + extension_length
+    point = 4
+    if point + 34 > len(handshake_data):
+        return None
+    point += 34  # Skip protocol version and random number
+    session_id_length = handshake_data[point]
+    point += 1 + session_id_length
+    if point + 2 > len(handshake_data):
+        return None
+    cipher_suites_length = struct.unpack_from(">H", handshake_data, point)[0]
+    point += 2 + cipher_suites_length
+    if point >= len(handshake_data):
+        return None
+    compression_methods_length = handshake_data[point]
+    point += 1 + compression_methods_length
+
+    if point + 2 > len(handshake_data):
+        return None
+    extensions_length = struct.unpack_from(">H", handshake_data, point)[0]
+    point += 2
+    end = point + extensions_length
+    while point + 4 <= end:
+        ext_type, ext_len = struct.unpack_from(">HH", handshake_data, point)
+        point += 4
+        if ext_type == 0x0000 and ext_len >= 5:  # SNI
+            list_len = struct.unpack_from(">H", handshake_data, point)[0]
+            if list_len >= 3:
+                name_type = handshake_data[point + 2]
+                if name_type == 0:
+                    name_len = struct.unpack_from(
+                        ">H", handshake_data, point + 3
+                    )[0]
+                    sni_start = point + 5
+                    sni_end = sni_start + name_len
+                    if sni_end <= point + ext_len:
+                        return handshake_data[sni_start:sni_end].tobytes()
+        point += ext_len
     return None
 
-def check_key_share(data):
+def check_key_share(data: bytes) -> tuple:
     '''
-    Validate the existence of "key_share" in ClientHello.
+    Check if "key_share" extension exists in ClientHello. 
+    Return (1/0/-1, protocol_version bytes or None)
+        1: found key_share
+        0: error or key_share not found
+       -1: no extensions
     '''
     try:
         if len(data) < 5: # Not long enough
             return 0, None
 
-        # Parse TLS record layer header: 1-byte type, 2-byte version, 2-byte length.
-        record_type, record_version, record_length = struct.unpack('!BHH', data[:5])
+        typ, ver, rec_len = struct.unpack_from('!BHH', data, 0)
 
-        # Check if it is a Handshake (type 22) and data length is sufficient.
-        if record_type != 22 or len(data) < 5 + record_length:
+        if typ != 22 or len(data) < 5 + rec_len:
             return 0, None
 
-        # Extract Handshake protocol data (excluding record layer header).
-        handshake_data = data[5:5 + record_length]
-        if len(handshake_data) < 4:  # Handshake header must be at least 4 bytes.
+        handshake_data = memoryview(data)[5:5 + rec_len]
+        hdsk_len =  len(handshake_data)
+        if hdsk_len < 4:
             return 0, None
 
-         # Parse Handshake header: 1-byte type, 3-byte length.
         handshake_type = handshake_data[0]
         handshake_len = int.from_bytes(handshake_data[1:4], 'big')
 
-        # Verify it is a ClientHello (type 1) and length matches.
-        if handshake_type != 1 or len(handshake_data) < 4 + handshake_len:
+        if handshake_type != 1 or hdsk_len < 4 + handshake_len:
             return 0, protocol_version
 
-        # Extract ClientHello body (excluding Handshake header).
-        hello_body = handshake_data[4:4 + handshake_len]
-        offset = 0
+        pos = 4
+        if pos + 34 > hdsk_len:
+            return 0, None
+        protocol_version = handshake_data[pos:pos + 2]
+        pos += 34
 
-        # Skip fixed fields: protocol version (2 bytes) + random (32 bytes).
-        if len(hello_body) < 34:
+        if pos >= hdsk_len:
             return 0, protocol_version
-        protocol_version = hello_body[:2]
-        offset += 34
+        sess_id_len = handshake_data[pos]
+        pos += 1 + sess_id_len
 
-        # Parse and skip session ID.
-        if offset >= len(hello_body):
+        if pos + 2 > hdsk_len:
             return 0, protocol_version
-        session_id_len = hello_body[offset]
-        offset += 1
-        if offset + session_id_len > len(hello_body):
-            return 0, protocol_version
-        offset += session_id_len
+        cipher_len = struct.unpack_from('!H', handshake_data, pos)[0]
+        pos += 2 + cipher_len
+        if pos >= hdsk_len:
+            return 0, protocol_len
+        comp_len = handshake_data[pos]
+        pos += 1 + comp_len
 
-        # Parse and skip cipher suites.
-        if offset + 2 > len(hello_body):
-            return 0, protocol_version
-        cipher_suites_len = int.from_bytes(hello_body[offset:offset + 2], 'big')
-        offset += 2
-        if offset + cipher_suites_len > len(hello_body):
-            return 0, protocol_version
-        offset += cipher_suites_len
-
-        # Parse and skip compression methods.
-        if offset >= len(hello_body):
-            return 0, protocol_version
-        compression_len = hello_body[offset]
-        offset += 1
-        if offset + compression_len > len(hello_body):
-            return 0, protocol_version
-        offset += compression_len
-
-        # Check if there are extensions length.
-        if offset == len(hello_body):
-            return -1  # No extensions.
-        if offset + 2 > len(hello_body):
+        if pos == hdsk_len:
+            return -1, protocol_version  # no extensions
+        if pos + 2 > hdsk_len:
             return 0, protocol_version
 
-        # Parse total extensions length.
-        extensions_len = int.from_bytes(hello_body[offset:offset + 2], 'big')
-        offset += 2
-        if offset + extensions_len > len(hello_body):
+        ext_len = struct.unpack_from('!H', handshake_data, pos)[0]
+        pos += 2
+        if pos + ext_len > hdsk_len:
             return 0, protocol_version
 
-        # Traverse through extensions.
-        end_ext = offset + extensions_len
-        while offset < end_ext:
-            # Each extension must have at least a 4-byte header.
-            if offset + 4 > end_ext:
-                return 0, protocol_version
-            ext_type = int.from_bytes(hello_body[offset:offset + 2], 'big')
-            ext_len = value = int.from_bytes(
-                hello_body[offset + 2:offset+ 4 ], 'big'
+        end = pos + ext_len
+        while pos + 4 <= end:
+            ext_type, ext_data_len = struct.unpack_from(
+                '!HH', handshake_data, pos
             )
-            offset += 4
-
-            # Check for `key_share` (extension type 51).
-            if ext_type == 51:
+            pos += 4
+            if ext_type == 51:  # key_share
                 return 1, protocol_version
-
-            # Skip over extension data.
-            offset += ext_len
-            if offset > end_ext:
+            pos += ext_data_len
+            if pos > end:
                 return 0, protocol_version
 
         return -1, protocol_version
@@ -272,7 +231,7 @@ def check_key_share(data):
     except Exception as e:
         from .logger_with_context import logger
         logger = logger.getChild("utils")
-        logger.debug('While checking key_share: %s', repr(e))
+        logger.debug('Checking key_share failed: %s', repr(e), exc_info=True)
         return 0, None
 
 async def send_tls_alert(writer, client_version):
