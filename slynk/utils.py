@@ -187,7 +187,7 @@ def check_key_share(data: bytes) -> tuple:
         pos = 4
         if pos + 34 > hdsk_len:
             return 0, None
-        protocol_version = handshake_data[pos:pos + 2].tobytes()
+        protocol_version = bytes(handshake_data[pos:pos + 2])
         pos += 34
 
         if pos >= hdsk_len:
