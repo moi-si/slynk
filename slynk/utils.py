@@ -191,7 +191,7 @@ def check_key_share(data):
 
          # Parse Handshake header: 1-byte type, 3-byte length.
         handshake_type = handshake_data[0]
-        handshake_len = (handshake_data[1] << 16) | (handshake_data[2] << 8) | handshake_data[3]
+        handshake_len = int.from_bytes(handshake_data[1:4], 'big')
 
         # Verify it is a ClientHello (type 1) and length matches.
         if handshake_type != 1 or len(handshake_data) < 4 + handshake_len:
@@ -203,7 +203,7 @@ def check_key_share(data):
 
         # Skip fixed fields: protocol version (2 bytes) + random (32 bytes).
         if len(hello_body) < 34:
-            return 0, protocol_version
+            return 0
         protocol_version = hello_body[:2]
         offset += 34
 
@@ -219,7 +219,7 @@ def check_key_share(data):
         # Parse and skip cipher suites.
         if offset + 2 > len(hello_body):
             return 0, protocol_version
-        cipher_suites_len = (hello_body[offset] << 8) | hello_body[offset+1]
+        cipher_suites_len = int.from_bytes(hello_body[offset:offset + 2], 'big')
         offset += 2
         if offset + cipher_suites_len > len(hello_body):
             return 0, protocol_version
@@ -241,7 +241,7 @@ def check_key_share(data):
             return 0, protocol_version
 
         # Parse total extensions length.
-        extensions_len = (hello_body[offset] << 8) | hello_body[offset+1]
+        extensions_len = int.from_bytes(hello_body[offset:offset + 2], 'big')
         offset += 2
         if offset + extensions_len > len(hello_body):
             return 0, protocol_version
@@ -252,8 +252,10 @@ def check_key_share(data):
             # Each extension must have at least a 4-byte header.
             if offset + 4 > end_ext:
                 return 0, protocol_version
-            ext_type = (hello_body[offset] << 8) | hello_body[offset+1]
-            ext_len = (hello_body[offset+2] << 8) | hello_body[offset+3]
+            ext_type = int.from_bytes(hello_body[offset:offset + 2], 'big')
+            ext_len = value = int.from_bytes(
+                hello_body[offset + 2:offset+ 4 ], 'big'
+            )
             offset += 4
 
             # Check for `key_share` (extension type 51).
@@ -271,7 +273,7 @@ def check_key_share(data):
         from .logger_with_context import logger
         logger = logger.getChild("utils")
         logger.debug('While checking key_share: %s', repr(e))
-        return 0
+        return 0, None
 
 async def send_tls_alert(writer, client_version):
     '''Send fake TLS Alert message to the client'''
