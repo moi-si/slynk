@@ -331,9 +331,12 @@ async def send_data_with_fake(writer, data, sni):
         default_ttl = sock.getsockopt(socket.IPPROTO_IP, socket.IP_TTL)
         try:
             fake_data = policy.get("fake_packet")
-            fake_ttl = int(policy.get("fake_ttl"))
-        except:
-            raise RuntimeError("FAKE_packet or FAKE_ttl not set in settings.json", fake_data, fake_ttl)
+            fake_ttl = policy.get("fake_ttl")
+        except Exception:
+            raise RuntimeError(
+                "FAKE_packet or FAKE_ttl not set in settings.json",
+                fake_data, fake_ttl
+            )
 
         data_len = len(fake_data)
         FAKE_sleep = policy.get("fake_sleep")
@@ -342,10 +345,10 @@ async def send_data_with_fake(writer, data, sni):
             data_len,
             fake_data,
             fake_ttl,
-            data[0:data_len],
+            data[:data_len],
             default_ttl,
             sock,
-            FAKE_sleep,
+            FAKE_sleep
         ):
             logger.info("Fake data sent.")
         else:
@@ -360,12 +363,12 @@ async def send_data_with_fake(writer, data, sni):
             return
         sni_len = len(sni)
 
-        writer.write(data[0:position])
+        writer.write(data[:position])
         await writer.drain()
         data = data[position:]
 
         if policy.get("len_tcp_sni") >= sni_len:
-            policy["len_tcp_sni"] = sni_len / 2
+            policy["len_tcp_sni"] = sni_len // 2
             logger.info(
                 "len_tcp_sni too big, set to %d", policy.get("len_tcp_sni")
             )
@@ -375,7 +378,7 @@ async def send_data_with_fake(writer, data, sni):
             policy.get("len_tcp_sni"),
             fake_data,
             fake_ttl,
-            sni[0:policy.get("len_tcp_sni")],
+            sni[:policy.get("len_tcp_sni")],
             default_ttl,
             sock,
             FAKE_sleep

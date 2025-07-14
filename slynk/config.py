@@ -92,7 +92,7 @@ elif match_mode == 'trie':
             return {}
 
 else:
-    raise ValueError('Unknown domain matching mode')
+    raise ValueError(f'Unknown domain matching mode: {match_mode}')
 
 
 class TrieNode:
@@ -145,17 +145,18 @@ if default_policy["fake_ttl"] == "auto":
 TTL_cache = {}  # TTL for each IP
 DNS_cache = {}  # DNS cache for each domain
 
-try:
-    with open("DNS_cache.json", "rb") as f:
-        DNS_cache = json.load(f)
-except FileNotFoundError:
-    print('DNS cache not found')
+def init_cache():
+    try:
+        with open("DNS_cache.json", "rb") as f:
+            DNS_cache = json.load(f)
+    except FileNotFoundError:
+        print('DNS cache not found.')
 
-try:
-    with open("TTL_cache.json", "rb") as f:
-        TTL_cache = json.load(f)
-except FileNotFoundError:
-    print('TTL cache not found')
+    try:
+        with open("TTL_cache.json", "rb") as f:
+            TTL_cache = json.load(f)
+    except FileNotFoundError:
+        print('TTL cache not found.')
 
 def write_DNS_cache():
     with open("DNS_cache.json", "w") as f:

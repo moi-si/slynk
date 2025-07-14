@@ -4,7 +4,7 @@ import asyncio
 import socket
 import os
 
-from .config import CONFIG, basepath
+from .config import CONFIG, basepath, init_cache
 from .logger_with_context import (
     logger, client_port, domain_policy, remote_host, force_close
 )
@@ -22,7 +22,7 @@ def set_socket_linger_rst(writer):
         socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0)
     )
 
-def make_pac_resp():
+def make_pac_resp(server_port):
     global PAC_RESP
     try:
         if os.path.exists('proxy.pac'):
@@ -33,7 +33,7 @@ def make_pac_resp():
             raise FileNotFoundError('PAC file not found')
         with open(pac_path, 'rb') as f:
             pac_file = f.read().replace(
-                b'{{port}}', str(CONFIG['port']).encode('iso-8859-1')
+                b'{{port}}', str(server_port).encode('iso-8859-1')
             )
             PAC_RESP = (
                 'HTTP/1.1 200 OK\r\n'
@@ -45,7 +45,7 @@ def make_pac_resp():
     except Exception as e:
         print(
             f'Failed to make PAC response due to {repr(e)}.',
-            'Server will start, but the PAC file will not be served.'
+            'The server will start, but the PAC file will not be served.'
         )
         PAC_RESP = b'HTTP/1.1 404 Not Found\r\n\r\n'
 
@@ -278,20 +278,23 @@ async def socks5_handler(reader, writer):
     finally:
         await close_writers(writer, remote_writer)
 
-async def main():
-    proxy_type = CONFIG.get('proxy_type')
+async def main(server_port=None, proxy_type=None):
+    print(f'Slynk v{__version__} - A local relay to protect HTTPS connections')
+
+    server_port = server_port if server_port else CONFIG.get('server_port')
+    if server_port is None:
+        raise ValueError('Port not specified')
+    if server_port < 0 or server_port > 65535:
+        raise ValueError(f'Port {port} is invalid')
+
+    proxy_type = proxy_type if proxy_type else CONFIG.get('proxy_type')
     if proxy_type == 'http':
-        make_pac_resp()
+        make_pac_resp(server_port)
         handler = http_handler
     elif proxy_type == 'socks5':
         handler = socks5_handler
     elif proxy_type is None:
-        logger.error(
-            'Proxy type not specified. '
-            'Please set the `proxy_type` field ("http" or "socks5")'
-            'in `config.json`.'
-        )
-        return
+        raise ValueError('Proxy type not specified')
     else:
         raise ValueError(f'Unknown proxy type: {proxy_type}')
 
@@ -300,7 +303,7 @@ async def main():
         doh = True
         from . import doh_extension
         resolver = doh_extension.ProxiedDoHClient(
-            CONFIG['DNS_URL'], CONFIG['proxy_type'], '127.0.0.1', CONFIG['port']
+            CONFIG['DNS_URL'], proxy_type, '127.0.0.1', server_port
         )
         await resolver.init_session()
         dns_query = resolver.resolve
@@ -315,19 +318,15 @@ async def main():
         async def dns_query(domain, qtype):
             result = await resolver.resolve(domain, qtype)
             return result[0].to_text()
-    print('DNS resolver is ready.')
+    print('DNS client is ready.')
 
-    print(f'Slynk v{__version__} - A lightweight local relay')
-    server = await asyncio.start_server(
-        handler, '127.0.0.1', CONFIG['port']
-    )
-    print(f"Ready at {proxy_type}://127.0.0.1:{CONFIG['port']}")
+    init_cache()
+    server = await asyncio.start_server(handler, '127.0.0.1', server_port)
+    print(f"Ready at {proxy_type}://127.0.0.1:{server_port}\n")
 
     try:
         async with server:
             await server.serve_forever()
-    except KeyboardInterrupt:
-        print('\nShutting down...')
     finally:
         if doh:
             await resolver.close_session()

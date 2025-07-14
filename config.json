@@ -1,6 +1,6 @@
 {
     "loglevel": "INFO",
-    "port": 3500,
+    "server_port": 3500,
     "proxy_type": "http",
     "match_mode": "trie",
     "FAKE_ttl_auto_timeout": 5,
