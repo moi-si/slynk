@@ -1,6 +1,6 @@
 *Forked from [TlsFragment](https://github.com/maoist2009/TlsFragment)*
-# slynk
-slynk is a lightweight, local relay written in Python 3.8+ using asyncio. *Note: It may use more memory than TlsFragment.*
+# Slynk
+Slynk is an asyncio-based local relay server that can protect HTTPS connections. *Note: It may use more memory than TlsFragment.*
 ## How to start
 1. Make sure Python 3.8+ or newer installed.
 2. Clone this repository:
