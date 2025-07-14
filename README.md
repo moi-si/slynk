@@ -6,7 +6,7 @@ Slynk is an asyncio-based local relay server that can protect HTTPS connections.
 2. Clone this repository:
 
    ```
-   git clone https://github.com/moi-si/Slynk
+   git clone https://github.com/moi-si/slynk
    cd Slynk
    ```
 3. Install the required packages for Slynk by running:
