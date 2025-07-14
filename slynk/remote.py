@@ -52,13 +52,17 @@ async def get_connection(host, port, dns_query, protocol=6):
             try:
                 ip = await dns_query(host, 'AAAA')
             except Exception:
-                logger.warning('Failed to resolve %s via IPv6. Trying IPv4.')
+                logger.warning(
+                    'Failed to resolve %s via IPv6. Trying IPv4.', host
+                )
                 ip = await dns_query(host, 'A')
         else:
             try:
                 ip = await dns_query(host, 'A')
             except Exception:
-                logger.warning('Failed to resolve %s via IPv4. Trying IPv6.')
+                logger.warning(
+                    'Failed to resolve %s via IPv4. Trying IPv6.', host
+                )
                 ip = await dns_query(host, 'AAAA')
         if ip is None:
             raise RuntimeError(f'Failed to resolve {host}.')
