@@ -1,4 +1,4 @@
-__version__ = '0.3.0'
+__version__ = '0.3.1'
 
 import asyncio
 import socket
@@ -76,9 +76,9 @@ async def send_client_hello(
     policy = domain_policy.get()
     if (data := await reader.read(16384)) == b'':
         raise ConnectionError(
-            f'Client closed connection to {r_host} immediately.'
+            f'Client closed connection to {r_host} without sending any data.'
         )
-    if policy.get('safety_check') and (
+    if policy.get('tls13_only') and (
         has_key_share := utils.check_key_share(data)
     )[0] != 1:
         await utils.send_tls_alert(writer, has_key_share[1])
@@ -126,7 +126,8 @@ async def downstream(remote_reader, writer):
     try:
         if (data := await remote_reader.read(16384)) == b'':
             raise ConnectionError(
-                'Remote server {remote_host.get()} closed connection immediately.'
+                f'Remote server {remote_host.get()} closed connection '
+                'without sending any data.'
             )
         writer.write(data)
         await writer.drain()
@@ -219,7 +220,7 @@ async def socks5_handler(reader, writer):
 
         if 0x00 not in methods:
             raise ValueError(
-                'No "no authentication required" method is provided'
+                'No "no authentication required" method was provided'
             )
 
         writer.write(b'\x05\x00') 

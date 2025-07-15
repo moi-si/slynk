@@ -105,7 +105,7 @@ try:
         # kernel32._get_osfhandle.argtypes = [wintypes.INT]
         # kernel32._get_osfhandle.restype = wintypes.HANDLE
         pass
-    elif system in {"Linux", "Darwin", "Android"}:
+    elif system in ("Linux", "Darwin", "Android"):
         import ctypes
 
         # 加载 libc 库
@@ -193,7 +193,7 @@ def send_fake_data(
         file_path = f"{tempfile.gettempdir()}\\{uuid.uuid4()}.txt"
 
         sock_file_descriptor = sock.fileno()
-        logger.info("sock file discriptor: %s", sock_file_descriptor)
+        logger.info("Sock file discriptor: %s", sock_file_descriptor)
         file_handle = kernel32.CreateFileA(
             bytes(file_path, encoding="utf-8"),
             wintypes.DWORD(0x40000000 | 0x80000000),  # GENERIC_READ | GENERIC_WRITE
@@ -208,17 +208,21 @@ def send_fake_data(
         )
 
         if file_handle == -1:
-            raise Exception(
-                "Failed to create file. Error code:", kernel32.GetLastError()
+            logger.error(
+                "Failed to create file. Error code: %s",
+                kernel32.GetLastError()
             )
-        logger.info("Created file successfully. %s", file_handle)
+            return False
+        logger.info("Created file successfully. file_handle=%s", file_handle)
         try:
             ov = OVERLAPPED()
             ov.hEvent = kernel32.CreateEventA(None, True, False, None)
             if ov.hEvent <= 0:
-                raise Exception(
-                    "Failed to create event. Error code:", kernel32.GetLastError()
+                logger.error(
+                    "Failed to create event. Error code: %s",
+                    kernel32.GetLastError()
                 )
+                return False
             logger.info("Successfully create event. ov.hEvent=%s", ov.hEvent)
 
             kernel32.SetFilePointer(file_handle, 0, 0, 0)
@@ -250,7 +254,7 @@ def send_fake_data(
                 logger.warning("Too short sleep time on Windows, set to 0.1")
                 FAKE_sleep = 0.1
 
-            logger.info("Sleep for: %f", FAKE_sleep)
+            logger.info("Sleep for: %s", FAKE_sleep)
             time.sleep(FAKE_sleep)
             kernel32.SetFilePointer(file_handle, 0, 0, 0)
             kernel32.WriteFile(
@@ -268,17 +272,22 @@ def send_fake_data(
 
             if val == 0:
                 logger.info("TransmitFile call was successful. %s", result)
+                return True
             else:
-                raise Exception(
-                    "TransmitFile call failed (on waiting for event). Error code:",
+                logger.error(
+                    'TransmitFile call failed (on waiting for event). '
+                    'Error code: %s %s',
                     kernel32.GetLastError(),
                     ws2_32.WSAGetLastError(),
                 )
-            return True
-        except:
-            raise Exception(
-                "TransmitFile call failed. Error code:", kernel32.GetLastError()
+                return False
+        except Exception as e:
+            logger.error(
+                "TransmitFile call failed due to %s. Error code: %s",
+                repr(e),
+                kernel32.GetLastError()
             )
+            return False
         finally:
             kernel32.CloseHandle(file_handle)
             kernel32.CloseHandle(ov.hEvent)
@@ -309,11 +318,10 @@ def send_fake_data(
             if len < 0:
                 raise Exception("splice failed")
             logger.info("splice success %d", len)
-            logger.info(f"Sleep for: {FAKE_sleep} seconds.")
+            logger.info("Sleep for: %s seconds.", FAKE_sleep)
             time.sleep(FAKE_sleep)
             libc.memcpy(p, real_data, data_len)
             set_ttl(sock, default_ttl)
-            return True
         finally:
             libc.munmap(p, ((data_len - 1) // 4 + 1) * 4)
             libc.close(fds[0])
@@ -390,6 +398,7 @@ async def send_data_with_fake(writer, data, sni):
         data = data[policy.get("len_tcp_sni"):]
         writer.write(data)
         await writer.drain()
+        logger.info('Finishied.')
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
 
     except Exception as e:

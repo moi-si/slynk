@@ -5,15 +5,14 @@ import ipaddress
 from .logger_with_context import logger, domain_policy
 from . import utils
 from .config import (
+    get_policy,
     CONFIG,
-    default_policy,
     ipv4_map,
     ipv6_map,
     DNS_cache,
     TTL_cache,
     write_DNS_cache,
-    write_TTL_cache,
-    match_domain
+    write_TTL_cache
 )
 
 logger = logger.getChild('remote')
@@ -37,7 +36,7 @@ def redirect(ip):
     return redirect(mapped_ip)
 
 async def get_connection(host, port, dns_query, protocol=6):
-    policy = {**default_policy, **match_domain(host)}
+    policy = get_policy(host)
     domain_policy.set(policy)
     old_port, port = port, policy.setdefault('port', 443)
     if policy.get('IP'):
@@ -100,7 +99,7 @@ async def get_connection(host, port, dns_query, protocol=6):
     if protocol == 6:
         try:
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(ip, port), timeout=30
+                asyncio.open_connection(ip, port), timeout=15
             )
             return reader, writer
         except Exception as e:

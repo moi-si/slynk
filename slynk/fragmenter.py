@@ -80,7 +80,7 @@ async def send_chunks(writer, data, sni):
         fragmented_tls_data, l, r = fragment_pattern(
             record, sni, policy["len_tls_sni"], policy["num_tls_pieces"]
         )
-        tcp_data = b''
+        tcp_data = bytearray()
         for i, _ in enumerate(fragmented_tls_data):
             tmp = fragmented_tls_data[i] = (
                 base_header

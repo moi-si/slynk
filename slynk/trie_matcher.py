@@ -1,10 +1,13 @@
 class TrieMatcher:
     class TrieNode:
         __slots__ = ('children', 'wildcard_subdomain', 'wildcard_full')
+
         def __init__(self):
             self.children = {}
             self.wildcard_subdomain = None
             self.wildcard_full = None
+
+    __slots__ = ('exact_domains', 'trie_root')
 
     def __init__(self):
         self.exact_domains = set()

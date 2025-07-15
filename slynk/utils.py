@@ -43,10 +43,10 @@ def ip_to_binary_prefix(ip_or_network: str):
             return binary_prefix
         except ValueError:
             raise ValueError(
-                f"{ip_or_network} is not a valid IP address or network"
+                f"Invalid IP or network: {ip_or_network}"
             )
 
-def set_ttl(sock, ttl):
+def set_ttl(sock: socket.socket, ttl: int):
     if sock.family == socket.AF_INET6:
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_UNICAST_HOPS, ttl)
     else:
@@ -63,7 +63,7 @@ def check_ttl(ip: str, port: int, ttl: int) -> bool:
         set_ttl(sock, ttl)
         sock.settimeout(0.5)
         sock.connect((ip, port))
-        sock.send(b"0")
+        sock.send(b'0')
         return True
     except Exception as e:
         logger.error(
@@ -143,16 +143,14 @@ def extract_sni(data: bytes):
         point += 4
         if ext_type == 0x0000 and ext_len >= 5:  # SNI
             list_len = struct.unpack_from(">H", handshake_data, point)[0]
-            if list_len >= 3:
-                name_type = handshake_data[point + 2]
-                if name_type == 0:
-                    name_len = struct.unpack_from(
-                        ">H", handshake_data, point + 3
-                    )[0]
-                    sni_start = point + 5
-                    sni_end = sni_start + name_len
-                    if sni_end <= point + ext_len:
-                        return handshake_data[sni_start:sni_end].tobytes()
+            if list_len >= 3 and handshake_data[point + 2] == 0:
+                name_len = struct.unpack_from(
+                    ">H", handshake_data, point + 3
+                )[0]
+                sni_start = point + 5
+                sni_end = sni_start + name_len
+                if sni_end <= point + ext_len:
+                    return handshake_data[sni_start:sni_end].tobytes()
         point += ext_len
     return None
 
