@@ -2,20 +2,20 @@ import asyncio
 import json
 from pathlib import Path
 import shutil
-import ipaddress
 import random
 
+from . import trie_utils
 from .utils import ip_to_binary_prefix
 
 basepath = Path(__file__).parent.parent
 
-CONFIG = {}
-if not Path("config.json").exists():
-    shutil.copyfile(basepath / "config.json", "config.json")
-with open("config.json", "rb") as f:
-    _CONFIG = json.load(f)
+if Path('config.json').exists():
+    config_path = 'config.json'
+else:
+    config_path = basepath / 'config.json'
+with open(config_path, "rb") as f:
+    CONFIG = json.load(f)
 
-CONFIG = {**_CONFIG, **CONFIG}
 default_policy = CONFIG['default_policy']
 fake_packet = default_policy.get('fake_packet')
 if fake_packet:
@@ -42,10 +42,9 @@ if (match_mode := CONFIG.get('match_mode')) == 'ac':
             return default_policy
 
 elif match_mode == 'trie':
-    from . import trie_matcher
-    matcher = trie_matcher.TrieMatcher()
+    matcher = trie_utils.DomainMatcher()
 
-    def expand_pattern(s):
+    def expand_pattern(s: str) -> list | tuple:
         left_index, right_index = s.find('('), s.find(')')
         if left_index == -1 and right_index == -1:
             return s.split('/')
@@ -60,7 +59,7 @@ elif match_mode == 'trie':
         prefix = s[:left_index]
         suffix = s[right_index + 1:]
         inner = s[left_index + 1:right_index]
-        return [prefix + part + suffix for part in inner.split('/')]
+        return (prefix + part + suffix for part in inner.split('/'))
 
     expanded_policies = {}
     for key in CONFIG['domain_policies'].keys():
@@ -79,47 +78,14 @@ elif match_mode == 'trie':
 else:
     raise ValueError(f'Unknown domain matching mode: {match_mode}')
 
+expanded_policies = {}
+for key in CONFIG['ip_policies']:
+    for ip_or_network in key.replace(' ', '').split(','):
+        expanded_policies[ip_or_network] = CONFIG['ip_policies'][key]
+ipv4_map, ipv6_map = trie_utils.Trie(), trie_utils.Trie()
+CONFIG['ip_policies'] = expanded_policies
 
-class TrieNode:
-    __slots__ = ('children', 'val')
-    def __init__(self):
-        self.children = [None, None]
-        self.val = None
-
-
-class Trie:
-    __slots__ = ('root',)
-    def __init__(self):
-        self.root = TrieNode()
-
-    def insert(self, prefix, value):
-        node = self.root
-        for bit in prefix:
-            index = int(bit)
-            if not node.children[index]:
-                node.children[index] = TrieNode()
-            node = node.children[index]
-        node.val = value
-
-    def search(self, prefix):
-        node = self.root
-        ans = None
-        for bit in prefix:
-            index = int(bit)
-            if node.val is not None:
-                ans = node.val
-            if not node.children[index]:
-                return ans
-            node = node.children[index]
-        if node.val is not None:
-            ans = node.val
-        return ans
-
-
-ipv4_map = Trie()
-ipv6_map = Trie()
-
-for k, v in CONFIG["IPredirect"].items():
+for k, v in CONFIG['ip_policies'].items():
     if ':' in k:
         ipv6_map.insert(ip_to_binary_prefix(k), v)
     else:

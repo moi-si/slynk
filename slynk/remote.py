@@ -16,28 +16,32 @@ from .config import (
 )
 
 logger = logger.getChild('remote')
+
 cnt_upd_TTL_cache = 0
 lock_TTL_cache = asyncio.Lock()
 cnt_upd_DNS_cache = 0
 lock_DNS_cache = asyncio.Lock()
 
-def redirect(ip):
+def ip_redirect(ip: str) -> str:
     if ':' in ip:
-        mapped_ip = ipv6_map.search(utils.ip_to_binary_prefix(ip))
+        ip_policy = ipv6_map.search(utils.ip_to_binary_prefix(ip))
     else:
-        mapped_ip = ipv4_map.search(utils.ip_to_binary_prefix(ip))
-    if mapped_ip is None:
+        ip_policy = ipv4_map.search(utils.ip_to_binary_prefix(ip))
+    if ip_policy is None or (mapped_ip := ip_policy.get('map_to')) is None:
         return ip
+    chained = True
+    if mapped_ip[0] == '^':
+        mapped_ip = mapped_ip[1:]
+        chained = False
+    if '/' in mapped_ip:
+        mapped_ip = utils.transform_ip(ip, mapped_ip)
     if ip == mapped_ip:
-        return mapped_ip
+        return ip
     logger.info("Redirect %s to %s", ip, mapped_ip)
-    if mapped_ip[0] == "^":
-        return mapped_ip[1:]
-    return redirect(mapped_ip)
+    return ip_redirect(mapped_ip) if chained else mapped_ip
 
 async def get_connection(host, port, dns_query, protocol=6):
     policy = get_policy(host)
-    domain_policy.set(policy)
     old_port, port = port, policy.setdefault('port', 443)
     if policy.get('IP'):
         ip = policy['IP']
@@ -74,7 +78,14 @@ async def get_connection(host, port, dns_query, protocol=6):
                     cnt_upd_DNS_cache = 0
                     await utils.to_thread(write_DNS_cache)
             logger.info('DNS cache for %s to %s.', host, ip)
-    ip = redirect(ip)
+
+    ip = ip_redirect(ip)
+    if ':' in ip:
+        ip_policy = ipv6_map.search(utils.ip_to_binary_prefix(ip))
+    else:
+        ip_policy = ipv4_map.search(utils.ip_to_binary_prefix(ip))
+    if ip_policy is not None:
+        policy = {**policy, **ip_policy}
 
     if policy.get('fake_ttl') == 'query' and policy["mode"] == "FAKEdesync":
         logger.info('Fake TTL for %s is query.', ip)
@@ -85,17 +96,22 @@ async def get_connection(host, port, dns_query, protocol=6):
             val = await utils.to_thread(utils.get_ttl, ip, port)
             if val == -1:
                 raise RuntimeError(f'Failed to get TTL for {ip}:{port}.')
-            global cnt_upd_TTL_cache
-            async with lock_TTL_cache:
-                TTL_cache[ip] = val
-                cnt_upd_TTL_cache += 1
-                if cnt_upd_TTL_cache >= CONFIG["TTL_cache_update_interval"]:
-                    cnt_upd_TTL_cache = 0
-                    await utils.to_thread(write_TTL_cache)
+            if policy.get('TTL_cache'):
+                global cnt_upd_TTL_cache
+                async with lock_TTL_cache:
+                    TTL_cache[ip] = val
+                    cnt_upd_TTL_cache += 1
+                    if cnt_upd_TTL_cache >= CONFIG[
+                        "TTL_cache_update_interval"
+                    ]:
+                        cnt_upd_TTL_cache = 0
+                        await utils.to_thread(write_TTL_cache)
             policy["fake_ttl"] = val - 1
             logger.info('TTL cache for %s to %d.', ip, policy["fake_ttl"])
 
+    domain_policy.set(policy)
     logger.info('%s --> %s', host, policy)
+
     if protocol == 6:
         try:
             reader, writer = await asyncio.wait_for(

@@ -1,4 +1,4 @@
-class TrieMatcher:
+class DomainMatcher:
     class TrieNode:
         __slots__ = ('children', 'wildcard_subdomain', 'wildcard_full')
 
@@ -78,3 +78,37 @@ class TrieMatcher:
         elif best_depth_full != -1:
             return best_pattern_full
         return None
+
+class Trie:
+    class TrieNode:
+        __slots__ = ('children', 'val')
+        def __init__(self):
+            self.children = [None, None]
+            self.val = None
+
+    __slots__ = ('root',)
+    def __init__(self):
+        self.root = self.TrieNode()
+
+    def insert(self, prefix, value):
+        node = self.root
+        for bit in prefix:
+            index = int(bit)
+            if not node.children[index]:
+                node.children[index] = self.TrieNode()
+            node = node.children[index]
+        node.val = value
+
+    def search(self, prefix):
+        node = self.root
+        ans = None
+        for bit in prefix:
+            index = int(bit)
+            if node.val is not None:
+                ans = node.val
+            if not node.children[index]:
+                return ans
+            node = node.children[index]
+        if node.val is not None:
+            ans = node.val
+        return ans

@@ -46,7 +46,30 @@ def ip_to_binary_prefix(ip_or_network: str):
                 f"Invalid IP or network: {ip_or_network}"
             )
 
-def set_ttl(sock: socket.socket, ttl: int):
+def transform_ip(ip: str, target_network: str) -> str:
+    ip = ipaddress.ip_address(ip)
+    target_network = ipaddress.ip_network(target_network, strict=False)
+
+    if ip.version != target_network.version:
+        raise ValueError('Inconsistent IP type')
+
+    prefix_len = target_network.prefixlen
+    max_len = ip.max_prefixlen  # 32 when IPv4, 128 when IPv6
+
+    host_bits = max_len - prefix_len
+    full_mask = (1 << max_len) - 1
+    host_mask = (1 << host_bits) - 1
+    network_mask = full_mask ^ host_mask
+
+    ip_int = int(ip)
+    target_net_int = int(target_network.network_address)
+
+    new_ip = ipaddress.ip_address(
+        (target_net_int & network_mask) | (ip_int & host_mask)
+    )
+    return str(new_ip)
+
+def set_ttl(sock, ttl: int):
     if sock.family == socket.AF_INET6:
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_UNICAST_HOPS, ttl)
     else:
@@ -99,7 +122,7 @@ def is_ip_address(s: str) -> bool:
     except ValueError:
         return False
 
-def extract_sni(data: bytes):
+def extract_sni(data: bytes) -> bytes:
     if len(data) < 5:
         return None
     content_type = data[0]
@@ -238,7 +261,7 @@ async def send_tls_alert(writer, client_version):
         alert_type = 0x15
         version_major, version_minor = client_version
         alert_level = 0x02  # Fatal level
-        alert_description = 0x46  # protocol_version(70)
+        alert_description = 0x46
         alert_payload = bytes((alert_level, alert_description))
         record_header = struct.pack(
             ">BHH",

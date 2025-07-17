@@ -40,6 +40,7 @@ var domains = {
   "facebook.com": 1,
   "fbcdn.net": 1,
   "fbsbx.com": 1,
+  "instagram.com": 1,
   "x.com": 1,
   "twitter.com": 1,
   "pscp.tv": 1,
@@ -50,6 +51,7 @@ var domains = {
   "medium.com": 1,
   "annas-archive.org": 1,
   "mastodon.social": 1,
+  "fosstodon.social": 1,
   "fosstodon.org": 1,
   "good.news": 1,
   "bsky.app": 1,
@@ -116,7 +118,8 @@ var domains = {
   "greatfire.org": 1,
   "ooni.org": 1,
   "proton.me": 1,
-  "solana.com": 1
+  "solana.com": 1,
+   "vercel.app": 1
 };
 
 var shexps = [
@@ -128,6 +131,7 @@ var shexps = [
   "*://*.githubusercontent.com/*",
   "*://*.cdn-telegram.org/*",
   "*://t.me/*",
+  "*://*.cdninstagram.com/*",
   "*://*.twimg.com/*",
   "*://*.redditstatic.com/*",
   "*://indieweb.social/*",
@@ -138,7 +142,9 @@ var shexps = [
   "*://disk.yandex.com/*",
   "*://search.yahoo.co.jp/*",
   "*://i.pximg.net/*",
-  "*://wiki.viva-la-vita.org/*"
+  "*://wiki.viva-la-vita.org/*",
+  "*://onedrive.live.com/*",
+  "*://skyapi.onedrive.live.com/*"
 ];
 
 var proxy = "PROXY 127.0.0.1:{{port}};";
@@ -156,14 +162,12 @@ function FindProxyForURL(url, host) {
     var suffix;
     var pos = host.lastIndexOf('.');
     pos = host.lastIndexOf('.', pos - 1);
-    while(1) {
-        if (pos <= 0) {
-            if (hasOwnProperty.call(domains, host)) return proxy;
-            else if (shExpMatchs(url, shexps)) return proxy;
-            else return direct;
-        }
+    while (pos > 0) {
         suffix = host.substring(pos + 1);
         if (hasOwnProperty.call(domains, suffix)) return proxy;
         pos = host.lastIndexOf('.', pos - 1);
     }
+    if (hasOwnProperty.call(domains, host)) return proxy;
+    else if (shExpMatchs(url, shexps)) return proxy;
+    else return direct;
 }

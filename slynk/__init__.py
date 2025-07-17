@@ -3,10 +3,19 @@ __version__ = '0.3.1'
 import asyncio
 import socket
 import os
+import struct
 
-from .config import CONFIG, basepath, init_cache
+from .config import (
+    CONFIG,
+    basepath,
+    init_cache,
+    DNS_cache,
+    TTL_cache,
+    write_DNS_cache,
+    write_TTL_cache
+)
 from .logger_with_context import (
-    logger, client_port, domain_policy, remote_host, force_close
+    logger, client_port, domain_policy, force_close
 )
 from .remote import get_connection
 from . import fragmenter
@@ -37,8 +46,8 @@ def make_pac_resp(server_port):
             )
             PAC_RESP = (
                 'HTTP/1.1 200 OK\r\n'
-                'Content_Type:application/x-ns-proxy-autoconfig\r\n'
-                f'Content_Length: {len(pac_file)}\r\n\r\n'.encode('iso-8859-1')
+                'Content-Type:application/x-ns-proxy-autoconfig\r\n'
+                f'Content-Length: {len(pac_file)}\r\n\r\n'.encode('iso-8859-1')
                 + pac_file
             )
             print('PAC is ready.')
@@ -68,16 +77,49 @@ async def close_writers(writer, remote_writer):
             await asyncio.gather(*tasks, return_exceptions=True)
         logger.debug('Closed writers successfully.')
     except Exception as e:
-        logger.error('Failed to close writers due to %s.', repr(e))
+        logger.error(
+            'Failed to close writers due to %s.', repr(e), exc_info=True
+        )
 
-async def send_client_hello(
+async def upstream(reader, remote_writer, r_host):
+    try:
+        while (data := await reader.read(16384)) != b'':
+            remote_writer.write(data)
+            await remote_writer.drain()
+        logger.info('Client closed connection to %s.', r_host)
+
+    except Exception as e:
+        logger.error('Upstream from %s: %s', r_host, repr(e))
+
+async def downstream(remote_reader, writer, r_host):
+    try:
+        if (data := await remote_reader.read(16384)) == b'':
+            logger.error(
+                'Remote server %s closed connection without sending any data.',
+                r_host
+            )
+            return
+        writer.write(data)
+        await writer.drain()
+
+        while (data := await remote_reader.read(16384)) != b'':
+            writer.write(data)
+            await writer.drain()
+        logger.info('Remote server %s closed connection.', r_host)
+
+    except Exception as e:
+        logger.error('Downstream from %s: %s', r_host, repr(e))
+
+async def relay(
     reader, writer, remote_reader, remote_writer, r_host, r_port
 ):
     policy = domain_policy.get()
     if (data := await reader.read(16384)) == b'':
-        raise ConnectionError(
-            f'Client closed connection to {r_host} without sending any data.'
+        logger.error(
+            'Client closed connection to %s without sending any data.',
+            r_host
         )
+        return
     if policy.get('tls13_only') and (
         has_key_share := utils.check_key_share(data)
     )[0] != 1:
@@ -88,17 +130,14 @@ async def send_client_hello(
         await remote_writer.drain()
     else:
         if policy.get('BySNIfirst') and r_host != (sni_str := sni.decode()):
-            logger.info('Remote host has been changed to %s.', sni_str)
-            connection = await get_connection(
-                sni_str, r_port, resolver
-            )
+            logger.info('Remote host will be changed to %s.', sni_str)
+            connection = await get_connection(sni_str, r_port, resolver)
             if connection is None:
                 logger.warning('New connection failed. Falling back.')
             else:
                 remote_writer.transport.abort()
                 remote_reader, remote_writer = connection
                 r_host = sni_str
-        remote_host.set(r_host)
         mode = policy.get('mode')
         if mode == 'TLSfrag':
             await fragmenter.send_chunks(remote_writer, data, sni)
@@ -110,35 +149,17 @@ async def send_client_hello(
         elif mode == 'GFWlike':
             force_close.set(True)
             raise RuntimeError(f'{r_host} has been banned.')
-    return remote_reader, remote_writer
 
-async def upstream(reader, remote_writer):
-    try:
-        while (data := await reader.read(16384)) != b'':
-            remote_writer.write(data)
-            await remote_writer.drain()
-        logger.info('Client closed connection to %s.', remote_host.get())
-
-    except Exception as e:
-        logger.error('Upstream from %s: %s', remote_host.get(), repr(e))
-
-async def downstream(remote_reader, writer):
-    try:
-        if (data := await remote_reader.read(16384)) == b'':
-            raise ConnectionError(
-                f'Remote server {remote_host.get()} closed connection '
-                'without sending any data.'
-            )
-        writer.write(data)
-        await writer.drain()
-
-        while (data := await remote_reader.read(16384)) != b'':
-            writer.write(data)
-            await writer.drain()
-        logger.info('Remote server %s closed connection.', remote_host.get())
-
-    except Exception as e:
-        logger.error('Downstream from %s: %s', remote_host.get(), repr(e))
+        tasks = (
+            asyncio.create_task(upstream(reader, remote_writer, r_host)),
+            asyncio.create_task(downstream(remote_reader, writer, r_host))
+        )
+        _, pending = await asyncio.wait(
+            tasks, return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
 
 async def http_handler(reader, writer):
     remote_writer = None
@@ -168,19 +189,9 @@ async def http_handler(reader, writer):
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
             remote_reader, remote_writer = connection
-            remote_reader, remote_writer = await send_client_hello(
+            await relay(
                 reader, writer, remote_reader, remote_writer, r_host, r_port
             )
-            tasks = (
-                asyncio.create_task(upstream(reader, remote_writer)),
-                asyncio.create_task(downstream(remote_reader, writer))
-            )
-            _, pending = await asyncio.wait(
-                tasks, return_when=asyncio.FIRST_COMPLETED
-            )
-            for task in pending:
-                task.cancel()
-            await asyncio.gather(*pending, return_exceptions=True)
 
         elif method in (
             'GET', 'POST', 'PUT', 'DELETE',
@@ -200,8 +211,13 @@ async def http_handler(reader, writer):
             writer.write(b'HTTP/1.1 400 Bad Request\r\n\r\n')
             await writer.drain()
 
+    except asyncio.exceptions.IncompleteReadError as e:
+        logger.info(repr(e))
+
     except Exception as e:
-        logger.error('HTTP Handler exception for: %s',repr(e))
+        logger.error(
+            'HTTP Handler exception for: %s', repr(e), exc_info=True
+        )
 
     finally:
         await close_writers(writer, remote_writer)
@@ -259,28 +275,28 @@ async def socks5_handler(reader, writer):
         writer.write(b'\x05\x00\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00')
         await writer.drain()
         remote_reader, remote_writer = connection
-        remote_reader, remote_writer = await send_client_hello(
+        await relay(
             reader, writer, remote_reader, remote_writer, address, port
         )
-        tasks = (
-            asyncio.create_task(upstream(reader, remote_writer)),
-            asyncio.create_task(downstream(remote_reader, writer))
-        )
-        _, pending = await asyncio.wait(
-            tasks, return_when=asyncio.FIRST_COMPLETED
-        )
-        for task in pending:
-            task.cancel()
-        await asyncio.gather(*pending, return_exceptions=True)
+
+    except ValueError as e:
+        logger.warning(repr(e))
+
+    except asyncio.exceptions.IncompleteReadError as e:
+        logger.info(repr(e))
 
     except Exception as e:
-        logger.error('SOCKS5 Handler exception for: %s', repr(e))
+        logger.error(
+            'SOCKS5 Handler exception for: %s', repr(e), exc_info=True
+        )
 
     finally:
         await close_writers(writer, remote_writer)
 
 async def main(server_port=None, proxy_type=None):
     print(f'Slynk v{__version__} - A local relay to protect HTTPS connections')
+
+    doh = False
 
     server_port = server_port if server_port else CONFIG.get('server_port')
     if server_port is None:
@@ -310,7 +326,6 @@ async def main(server_port=None, proxy_type=None):
         dns_query = resolver.resolve
     else:
         import dns.asyncresolver, dns.nameserver
-        doh = False
         address, port = CONFIG['DNS_URL'].split(':')
         resolver = dns.asyncresolver.Resolver(configure=False)
         resolver.nameservers.append(
@@ -331,4 +346,8 @@ async def main(server_port=None, proxy_type=None):
     finally:
         if doh:
             await resolver.close_session()
+        if DNS_cache:
+            write_DNS_cache()
+        if TTL_cache:
+            write_TTL_cache()
         print('\nExited.')
