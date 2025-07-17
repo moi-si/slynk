@@ -44,7 +44,7 @@ if (match_mode := CONFIG.get('match_mode')) == 'ac':
 elif match_mode == 'trie':
     matcher = trie_utils.DomainMatcher()
 
-    def expand_pattern(s: str) -> list | tuple:
+    def expand_pattern(s: str):
         left_index, right_index = s.find('('), s.find(')')
         if left_index == -1 and right_index == -1:
             return s.split('/')
