@@ -302,7 +302,7 @@ async def main(server_port=None, proxy_type=None):
     if server_port is None:
         raise ValueError('Port not specified')
     if server_port < 0 or server_port > 65535:
-        raise ValueError(f'Port {port} is invalid')
+        raise ValueError(f'Port {server_port} is invalid')
 
     proxy_type = proxy_type if proxy_type else CONFIG.get('proxy_type')
     if proxy_type == 'http':
