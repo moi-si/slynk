@@ -101,12 +101,14 @@ DNS_cache = {}  # DNS cache for each domain
 def init_cache():
     try:
         with open("DNS_cache.json", "rb") as f:
+            global DNS_cache
             DNS_cache = json.load(f)
     except Exception as e:
         print(f'DNS_cache.json: {repr(e)}')
 
     try:
         with open("TTL_cache.json", "rb") as f:
+            global TTL_cache
             TTL_cache = json.load(f)
     except Exception as e:
         print(f'TTL_cache.json: {repr(e)}')
