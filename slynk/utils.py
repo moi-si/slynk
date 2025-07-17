@@ -143,7 +143,7 @@ def calc_ttl(conf: str, dist: int) -> int:
                 return dist - val
             elif typ == '=':
                 return val
-    raise ValueError('Proper TTL rules not found')
+    raise ValueError('Proper TTL rule not found')
 
 def extract_sni(data: bytes) -> bytes:
     if len(data) < 5:
