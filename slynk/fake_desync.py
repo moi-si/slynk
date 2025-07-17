@@ -3,7 +3,7 @@ import time
 import platform
 
 from .utils import set_ttl, to_thread
-from .logger_with_context import logger, domain_policy
+from .logger_with_context import logger, policy_ctx
 from . import remote
 
 logger = logger.getChild("fake_desync")
@@ -333,7 +333,7 @@ async def send_data_with_fake(writer, data, sni):
     try:
         if (sock := writer.get_extra_info('socket')) is None:
             raise RuntimeError('Failed to get socket of writer')
-        policy = domain_policy.get()
+        policy = policy_ctx.get()
         logger.info("To send: %d bytes. ", len(data))
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         default_ttl = sock.getsockopt(socket.IPPROTO_IP, socket.IP_TTL)

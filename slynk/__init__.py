@@ -15,7 +15,7 @@ from .config import (
     write_TTL_cache
 )
 from .logger_with_context import (
-    logger, client_port, domain_policy, force_close
+    logger, client_port, policy_ctx, force_close
 )
 from .remote import get_connection
 from . import fragmenter
@@ -113,7 +113,7 @@ async def downstream(remote_reader, writer, r_host):
 async def relay(
     reader, writer, remote_reader, remote_writer, r_host, r_port
 ):
-    policy = domain_policy.get()
+    policy = policy_ctx.get()
     if (data := await reader.read(16384)) == b'':
         logger.error(
             'Client closed connection to %s without sending any data.',
@@ -346,8 +346,11 @@ async def main(server_port=None, proxy_type=None):
     finally:
         if doh:
             await resolver.close_session()
+        print()
         if DNS_cache:
             write_DNS_cache()
+            print('DNS cache saved.')
         if TTL_cache:
             write_TTL_cache()
-        print('\nExited.')
+            print('TTL cache saved.')
+        print('Exited.')

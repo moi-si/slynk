@@ -20,6 +20,9 @@ default_policy = CONFIG['default_policy']
 fake_packet = default_policy.get('fake_packet')
 if fake_packet:
     default_policy['fake_packet'] = fake_packet.encode(encoding='iso-8859-1')
+if default_policy["fake_ttl"] == "auto":
+    # Temp code for auto fake_ttl
+    default_policy["fake_ttl"] = random.randint(10, 60)
 
 if (match_mode := CONFIG.get('match_mode')) == 'ac':
     import copy
@@ -28,18 +31,16 @@ if (match_mode := CONFIG.get('match_mode')) == 'ac':
         *CONFIG['domain_policies'].keys()
     )
 
-    def get_policy(host):
+    def match_domain(host):
         if matched_domains := domain_policies.search(f'^{host}$'):
-            return {
-                **default_policy,
-                **copy.deepcopy(
-                    CONFIG['domain_policies'].get(
-                        sorted(matched_domains, key=len, reverse=True)[0]
-                    )
+            return copy.deepcopy(
+                CONFIG['domain_policies'].get(
+                    sorted(matched_domains, key=len, reverse=True)[0]
                 )
-            }
+            )
+
         else:
-            return default_policy
+            return {}
 
 elif match_mode == 'trie':
     matcher = trie_utils.DomainMatcher()
@@ -69,11 +70,11 @@ elif match_mode == 'trie':
                 matcher.add_pattern(pattern)
     CONFIG['domain_policies'] = expanded_policies
 
-    def get_policy(host):
+    def match_domain(host: str) -> dict:
         if pattern := matcher.match(host):
-            return {**default_policy, **CONFIG['domain_policies'][pattern]}
+            return CONFIG['domain_policies'][pattern]
         else:
-            return default_policy
+            return {}
 
 else:
     raise ValueError(f'Unknown domain matching mode: {match_mode}')
@@ -91,9 +92,12 @@ for k, v in CONFIG['ip_policies'].items():
     else:
         ipv4_map.insert(ip_to_binary_prefix(k), v)
 
-if default_policy["fake_ttl"] == "auto":
-    # Temp code for auto fake_ttl
-    default_policy["fake_ttl"] = random.randint(10, 60)
+def match_ip(ip: str) -> dict:
+    if ':' in ip:
+        ip_policy = ipv6_map.search(ip_to_binary_prefix(ip))
+    else:
+        ip_policy = ipv4_map.search(ip_to_binary_prefix(ip))
+    return ip_policy if ip_policy else {}
 
 TTL_cache = {}  # TTL for each IP
 DNS_cache = {}  # DNS cache for each domain
@@ -101,15 +105,13 @@ DNS_cache = {}  # DNS cache for each domain
 def init_cache():
     try:
         with open("DNS_cache.json", "rb") as f:
-            global DNS_cache
-            DNS_cache = json.load(f)
+            DNS_cache.update(json.load(f))
     except Exception as e:
         print(f'DNS_cache.json: {repr(e)}')
 
     try:
         with open("TTL_cache.json", "rb") as f:
-            global TTL_cache
-            TTL_cache = json.load(f)
+            TTL_cache.update(json.load(f))
     except Exception as e:
         print(f'TTL_cache.json: {repr(e)}')
 

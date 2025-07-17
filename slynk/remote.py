@@ -2,13 +2,13 @@ import socket
 import asyncio
 import ipaddress
 
-from .logger_with_context import logger, domain_policy
+from .logger_with_context import logger, policy_ctx
 from . import utils
 from .config import (
-    get_policy,
+    default_policy,
+    match_domain,
+    match_ip,
     CONFIG,
-    ipv4_map,
-    ipv6_map,
     DNS_cache,
     TTL_cache,
     write_DNS_cache,
@@ -23,11 +23,7 @@ cnt_upd_DNS_cache = 0
 lock_DNS_cache = asyncio.Lock()
 
 def ip_redirect(ip: str) -> str:
-    if ':' in ip:
-        ip_policy = ipv6_map.search(utils.ip_to_binary_prefix(ip))
-    else:
-        ip_policy = ipv4_map.search(utils.ip_to_binary_prefix(ip))
-    if ip_policy is None or (mapped_ip := ip_policy.get('map_to')) is None:
+    if (mapped_ip := match_ip(ip).get('map_to')) is None:
         return ip
     chained = True
     if mapped_ip[0] == '^':
@@ -41,8 +37,10 @@ def ip_redirect(ip: str) -> str:
     return ip_redirect(mapped_ip) if chained else mapped_ip
 
 async def get_connection(host, port, dns_query, protocol=6):
-    policy = get_policy(host)
+    domain_policy = match_domain(host)
+    policy = {**default_policy, **domain_policy}
     old_port, port = port, policy.setdefault('port', 443)
+
     if policy.get('IP'):
         ip = policy['IP']
     elif utils.is_ip_address(host):
@@ -80,12 +78,7 @@ async def get_connection(host, port, dns_query, protocol=6):
             logger.info('DNS cache for %s to %s.', host, ip)
 
     ip = ip_redirect(ip)
-    if ':' in ip:
-        ip_policy = ipv6_map.search(utils.ip_to_binary_prefix(ip))
-    else:
-        ip_policy = ipv4_map.search(utils.ip_to_binary_prefix(ip))
-    if ip_policy is not None:
-        policy = {**policy, **ip_policy}
+    policy = {**default_policy, **match_ip(ip), **domain_policy}
 
     if policy["mode"] == "FAKEdesync" and policy['fake_ttl'][0] == 'q':
         logger.info('TTL rule for %s is %s.', ip, policy['fake_ttl'])
@@ -110,7 +103,7 @@ async def get_connection(host, port, dns_query, protocol=6):
         policy['fake_ttl'] = utils.calc_ttl(policy['fake_ttl'], val)
         logger.info('Fake TTL for %s is %d.', ip, policy['fake_ttl'])
 
-    domain_policy.set(policy)
+    policy_ctx.set(policy)
     logger.info('%s --> %s', host, policy)
 
     if protocol == 6:  # TCP

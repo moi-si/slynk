@@ -2,7 +2,7 @@ import asyncio
 import socket
 import random
 
-from .logger_with_context import logger, domain_policy
+from .logger_with_context import logger, policy_ctx
 
 logger = logger.getChild('fragmenter')
 
@@ -70,7 +70,7 @@ async def send_chunks(writer, data, sni):
         if (sock := writer.get_extra_info('socket')) is None:
             raise RuntimeError('Failed to get socket of writer.')
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        policy = domain_policy.get()
+        policy = policy_ctx.get()
 
         logger.info('To send: %d bytes.', len(data))
         # logger.debug('To send: %s', repr(data))

@@ -4,7 +4,7 @@ import logging
 from .config import CONFIG
 
 client_port = contextvars.ContextVar('client_port', default='?')
-domain_policy = contextvars.ContextVar('domain_policy', default=None)
+policy_ctx = contextvars.ContextVar('policy_ctx', default=None)
 force_close = contextvars.ContextVar('force_close', default=False)
 
 class CustomLogRecord(logging.LogRecord):
