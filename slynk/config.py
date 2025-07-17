@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import shutil
 import random
+import time
 
 from . import trie_utils
 from .utils import ip_to_binary_prefix
@@ -106,6 +107,11 @@ def init_cache():
     try:
         with open("DNS_cache.json", "rb") as f:
             DNS_cache.update(json.load(f))
+        t = time.time()
+        for domain, value in DNS_cache:
+            expries = value.get('expries')
+            if expries and expries <= time.time():
+                DNS_cache.pop(domain)
     except Exception as e:
         print(f'DNS_cache.json: {repr(e)}')
 

@@ -1,6 +1,7 @@
 import socket
 import asyncio
 import ipaddress
+import time
 
 from .logger_with_context import logger, policy_ctx
 from . import utils
@@ -46,7 +47,7 @@ async def get_connection(host, port, dns_query, protocol=6):
     elif utils.is_ip_address(host):
         ip = host
     elif DNS_cache.get(host):
-        ip = DNS_cache[host]
+        ip = DNS_cache[host]['ip']
         logger.info('DNS cache for %s is %s.', host, ip)
     else:
         if policy.get('IPv6_first'):
@@ -70,7 +71,11 @@ async def get_connection(host, port, dns_query, protocol=6):
         elif policy.get('DNS_cache'):
             global cnt_upd_DNS_cache
             async with lock_DNS_cache:
-                DNS_cache[host] = ip
+                if ttl := policy.get('DNS_cache_TTL'):
+                    expries = time.time() + ttl
+                else:
+                    expries = None
+                DNS_cache[host] = {'ip': ip, 'expries': expries}
                 cnt_upd_DNS_cache += 1
                 if cnt_upd_DNS_cache >= CONFIG["DNS_cache_update_interval"]:
                     cnt_upd_DNS_cache = 0
