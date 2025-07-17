@@ -39,7 +39,7 @@
             "map_to": "18.162.37.140"
         },
         "18.162.37.140": {
-            "mode": "FAKEdesync"
+            "mode": "DIRECT"
         }
     },
     "domain_policies": {

@@ -112,7 +112,8 @@ def get_ttl(ip: str, port: int) -> int:
         else:
             l = mid + 1
 
-    logger.info("TTL %d is reachable on %s:%d.", ans, ip, port)
+    if ans != -1:
+        logger.info("TTL %d is reachable on %s:%d.", ans, ip, port)
     return ans
 
 def is_ip_address(s: str) -> bool:
