@@ -87,11 +87,11 @@ async def get_connection(host, port, dns_query, protocol=6):
     if ip_policy is not None:
         policy = {**policy, **ip_policy}
 
-    if policy.get('fake_ttl') == 'query' and policy["mode"] == "FAKEdesync":
-        logger.info('Fake TTL for %s is query.', ip)
+    if policy["mode"] == "FAKEdesync" and policy['fake_ttl'][0] == 'q':
+        logger.info('TTL rule for %s is %s.', ip, policy['fake_ttl'])
         if TTL_cache.get(ip):
-            policy["fake_ttl"] = TTL_cache[ip] - 1
-            logger.info("TTL cache for %s is %d.", ip, policy['fake_ttl'])
+            val = TTL_cache[ip]
+            logger.info("TTL cache for %s is %s.", ip, val)
         else:
             val = await utils.to_thread(utils.get_ttl, ip, port)
             if val == -1:
@@ -106,13 +106,14 @@ async def get_connection(host, port, dns_query, protocol=6):
                     ]:
                         cnt_upd_TTL_cache = 0
                         await utils.to_thread(write_TTL_cache)
-            policy["fake_ttl"] = val - 1
-            logger.info('TTL cache for %s to %d.', ip, policy["fake_ttl"])
+                logger.info('TTL cache for %s to %d.', ip, val)
+        policy['fake_ttl'] = utils.calc_ttl(policy['fake_ttl'], val)
+        logger.info('Fake TTL for %s is %d.', ip, policy['fake_ttl'])
 
     domain_policy.set(policy)
     logger.info('%s --> %s', host, policy)
 
-    if protocol == 6:
+    if protocol == 6:  # TCP
         try:
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(ip, port), timeout=15

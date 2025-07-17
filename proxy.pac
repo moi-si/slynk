@@ -119,7 +119,7 @@ var domains = {
   "ooni.org": 1,
   "proton.me": 1,
   "solana.com": 1,
-   "vercel.app": 1,
+  "vercel.app": 1,
   "typora.io": 1
 };
 

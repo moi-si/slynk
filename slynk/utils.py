@@ -69,6 +69,13 @@ def transform_ip(ip: str, target_network: str) -> str:
     )
     return str(new_ip)
 
+def is_ip_address(s: str) -> bool:
+    try:
+        ipaddress.ip_address(s)
+        return True
+    except ValueError:
+        return False
+
 def set_ttl(sock, ttl: int):
     if sock.family == socket.AF_INET6:
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_UNICAST_HOPS, ttl)
@@ -116,12 +123,27 @@ def get_ttl(ip: str, port: int) -> int:
         logger.info("TTL %d is reachable on %s:%d.", ans, ip, port)
     return ans
 
-def is_ip_address(s: str) -> bool:
-    try:
-        ipaddress.ip_address(s)
-        return True
-    except ValueError:
-        return False
+def calc_ttl(conf: str, dist: int) -> int:
+    if not conf[0] == 'q':
+        return int(conf)
+    rules = conf[1:].split(';')
+    intervals = []
+    for rule in rules:
+        if '-' in rule:
+            a, b = map(int, rule.split('-'))
+            intervals.append((a, '-', b))
+        elif '=' in rule:
+            a, b = map(int, rule.split('='))
+            intervals.append((a, '=', b))
+    intervals.sort(reverse=True, key=lambda x: x[0])
+
+    for a, typ, val in intervals:
+        if dist >= a:
+            if typ == '-':
+                return dist - val
+            elif typ == '=':
+                return val
+    raise ValueError('Proper TTL rules not found')
 
 def extract_sni(data: bytes) -> bytes:
     if len(data) < 5:
