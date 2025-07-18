@@ -168,5 +168,5 @@ function FindProxyForURL(url, host) {
     }
     if (domains.has(host)) return proxy;
     else if (shExpMatchs(url, shexps)) return proxy;
-    else return direct;
+    else return "DIRECT;";
 }
