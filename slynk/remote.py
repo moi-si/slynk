@@ -82,7 +82,8 @@ async def get_connection(host, port, dns_query, protocol=6):
                     await utils.to_thread(write_DNS_cache)
             logger.info('DNS cache for %s to %s.', host, ip)
 
-    ip = ip_redirect(ip)
+    if host != ip:
+        ip = ip_redirect(ip)
     policy = {**default_policy, **match_ip(ip), **domain_policy}
 
     if policy["mode"] == "FAKEdesync" and policy['fake_ttl'][0] == 'q':
