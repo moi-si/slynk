@@ -12,12 +12,13 @@ Slynk is an asyncio-based local relay server that can protect HTTPS connections.
    git clone https://github.com/moi-si/slynk
    cd slynk
    ```
+   or download [ZIP](https://github.com/moi-si/slynk/archive/refs/heads/main.zip) and unpack it
 3. Install the required packages for Slynk by running:
 
    ```
    pip install -r requirements.txt
    ```
-4. Run `slynk.py` to start the relay:
+4. Start the relay:
 
    ```
    python slynk.py
