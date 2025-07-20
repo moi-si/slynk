@@ -7,7 +7,8 @@ var domains = new Set([
   "googleapis.com",
   "googleusercontent.com",
   "goo.gl",
-  "translate.goog",
+  "google",
+  "goog",
   "withgoogle.com",
   "pages.dev",
   "android.com",
@@ -63,6 +64,7 @@ var domains = new Set([
   "bbci.co.uk",
   "nytimes.com",
   "nyt.com",
+  "reuters.com",
   "adminforge.de",
   "apkmirror.com",
   "uptodown.com",
@@ -120,11 +122,16 @@ var domains = new Set([
   "proton.me",
   "solana.com",
   "vercel.app",
-  "typora.io"
+  "typora.io",
+  "notion.site",
+  "dlsite.com",
+  "flickr.com",
+  "medium.com"
 ]);
 
 var shexps = [
-  "*://*.google/*",
+  "*://cdn.jsdelivr.net/*",
+  "*://*.fastly.net/*",
   "*://youtu.be/*",
   "*://*.ytimg.com/*",
   "*://*.ggpht.com/*",
@@ -160,7 +167,6 @@ function shExpMatchs(url, shexps) {
 function FindProxyForURL(url, host) {
     var suffix;
     var pos = host.lastIndexOf('.');
-    pos = host.lastIndexOf('.', pos - 1);
     while (pos > 0) {
         suffix = host.substring(pos + 1);
         if (domains.has(suffix)) return proxy;
