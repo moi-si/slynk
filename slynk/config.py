@@ -108,7 +108,8 @@ def init_cache():
         with open("DNS_cache.json", "rb") as f:
             DNS_cache.update(json.load(f))
         t = time.time()
-        for domain, value in DNS_cache.items():
+        tmp = DNS_cache.copy()
+        for domain, value in tmp.items():
             expries = value.get('expries')
             if expries and expries <= t:
                 DNS_cache.pop(domain)
