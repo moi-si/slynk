@@ -110,7 +110,7 @@ def init_cache():
         t = time.time()
         for domain, value in DNS_cache.items():
             expries = value.get('expries')
-            if expries and expries <= time.time():
+            if expries and expries <= t:
                 DNS_cache.pop(domain)
     except Exception as e:
         print(f'DNS_cache.json: {repr(e)}')
