@@ -1,182 +1,127 @@
 import socket
 import time
 import platform
+import threading
 
+from .config import CONFIG
 from .utils import set_ttl, to_thread
 from .logger_with_context import logger, policy_ctx
 from . import remote
 
 logger = logger.getChild("fake_desync")
 system = platform.system()
+semaphore = threading.Semaphore(CONFIG.get('TransmitFileLimit') or 2)
 
-try:
-    if system == "Windows":
+if system == "Windows":
 
-        import ctypes
-        from ctypes import wintypes
+    import ctypes
+    from ctypes import wintypes
 
-        # 加载 mswsock.dll 库
-        mswsock = ctypes.WinDLL("mswsock")
-        # 加载 ws2_32.dll 库
-        ws2_32 = ctypes.windll.ws2_32
-        # 加载 kernel32.dll 库
-        kernel32 = ctypes.windll.kernel32
-        msvcrt = ctypes.cdll.msvcrt
+    # 加载 mswsock.dll 库
+    mswsock = ctypes.WinDLL("mswsock")
+    # 加载 ws2_32.dll 库
+    ws2_32 = ctypes.windll.ws2_32
+    # 加载 kernel32.dll 库
+    kernel32 = ctypes.windll.kernel32
+    msvcrt = ctypes.cdll.msvcrt
 
-        class _DUMMYSTRUCTNAME(ctypes.Structure):
-            _fields_ = [
-                ("Offset", wintypes.DWORD),
-                ("OffsetHigh", wintypes.DWORD),
-            ]
-
-        # 定义 TransmitFile 函数的参数类型
-        class _DUMMYUNIONNAME(ctypes.Union):
-            _fields_ = [
-                ("Pointer", ctypes.POINTER(ctypes.c_void_p)),
-                ("DUMMYSTRUCTNAME", _DUMMYSTRUCTNAME),
-            ]
-
-        # class OVERLAPPED(ctypes.Structure):
-        #     _fields_ = [
-        #         ("Internal", wintypes.ULONG),
-        #         ("InternalHigh", wintypes.ULONG),
-        #         ("DUMMYUNIONNAME", _DUMMYUNIONNAME),
-        #         ("hEvent", wintypes.HANDLE),
-        #     ]
-
-        class OVERLAPPED(ctypes.Structure):
-            _fields_ = [
-                ("Internal", ctypes.c_void_p),
-                ("InternalHigh", ctypes.c_void_p),
-                ("Offset", ctypes.c_ulong),
-                ("OffsetHigh", ctypes.c_ulong),
-                ("hEvent", ctypes.c_void_p),
-            ]
-
-        # import pywintypes
-        mswsock.TransmitFile.argtypes = [
-            wintypes.HANDLE,  # 套接字句柄
-            wintypes.HANDLE,  # 文件句柄
-            wintypes.DWORD,  # 要发送的字节数
-            wintypes.DWORD,  # 每次发送的字节数
-            ctypes.POINTER(OVERLAPPED),  # 重叠结构指针
-            ctypes.POINTER(ctypes.c_void_p),  # 传输缓冲区指针
-            wintypes.DWORD,  # 保留参数
+    class _DUMMYSTRUCTNAME(ctypes.Structure):
+        _fields_ = [
+            ("Offset", wintypes.DWORD),
+            ("OffsetHigh", wintypes.DWORD),
         ]
-        # 定义 TransmitFile 函数的返回值类型
-        mswsock.TransmitFile.restype = wintypes.BOOL
-        # ws2_32.WSASocketW.argtypes = [
-        #     wintypes.INT, wintypes.INT, wintypes.INT,
-        #     wintypes.DWORD,wintypes.DWORD, wintypes.DWORD
-        # ]
-        # ws2_32.WSASocketW.restype = ctypes.c_uint
 
-        kernel32.CreateFileA.argtypes = [
-            wintypes.LPCSTR,
-            wintypes.DWORD,
-            wintypes.DWORD,
-            wintypes.LPVOID,
-            wintypes.DWORD,
-            wintypes.DWORD,
-            wintypes.LPVOID,
+    # 定义 TransmitFile 函数的参数类型
+    class _DUMMYUNIONNAME(ctypes.Union):
+        _fields_ = [
+            ("Pointer", ctypes.POINTER(ctypes.c_void_p)),
+            ("DUMMYSTRUCTNAME", _DUMMYSTRUCTNAME),
         ]
-        kernel32.CreateFileA.restype = wintypes.HANDLE
-        kernel32.WriteFile.argtypes = [
-            wintypes.HANDLE,
-            wintypes.LPVOID,
-            wintypes.DWORD,
-            ctypes.POINTER(wintypes.DWORD),
-            wintypes.LPVOID,
+
+    # class OVERLAPPED(ctypes.Structure):
+    #     _fields_ = [
+    #         ("Internal", wintypes.ULONG),
+    #         ("InternalHigh", wintypes.ULONG),
+    #         ("DUMMYUNIONNAME", _DUMMYUNIONNAME),
+    #         ("hEvent", wintypes.HANDLE),
+    #     ]
+
+    class OVERLAPPED(ctypes.Structure):
+        _fields_ = [
+            ("Internal", ctypes.c_void_p),
+            ("InternalHigh", ctypes.c_void_p),
+            ("Offset", ctypes.c_ulong),
+            ("OffsetHigh", ctypes.c_ulong),
+            ("hEvent", ctypes.c_void_p),
         ]
-        kernel32.WriteFile.restype = wintypes.BOOL
-        kernel32.SetFilePointer.argtypes = [
-            wintypes.HANDLE,
-            ctypes.c_long,
-            wintypes.LONG,
-            wintypes.DWORD,
-        ]
-        kernel32.SetFilePointer.restype = ctypes.c_long
-        kernel32.SetEndOfFile.argtypes = [wintypes.HANDLE]
-        kernel32.SetEndOfFile.restype = wintypes.BOOL
-        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-        kernel32.CloseHandle.restype = wintypes.BOOL
-        msvcrt._get_osfhandle.argtypes = [wintypes.INT]
-        msvcrt._get_osfhandle.restype = wintypes.HANDLE
-        # kernel32._get_osfhandle.argtypes = [wintypes.INT]
-        # kernel32._get_osfhandle.restype = wintypes.HANDLE
-        pass
-    elif system in ("Linux", "Darwin", "Android"):
-        import ctypes
 
-        # 加载 libc 库
+    # import pywintypes
+    mswsock.TransmitFile.argtypes = [
+        wintypes.HANDLE,  # 套接字句柄
+        wintypes.HANDLE,  # 文件句柄
+        wintypes.DWORD,  # 要发送的字节数
+        wintypes.DWORD,  # 每次发送的字节数
+        ctypes.POINTER(OVERLAPPED),  # 重叠结构指针
+        ctypes.POINTER(ctypes.c_void_p),  # 传输缓冲区指针
+        wintypes.DWORD,  # 保留参数
+    ]
+    # 定义 TransmitFile 函数的返回值类型
+    mswsock.TransmitFile.restype = wintypes.BOOL
+    # ws2_32.WSASocketW.argtypes = [
+    #     wintypes.INT, wintypes.INT, wintypes.INT,
+    #     wintypes.DWORD,wintypes.DWORD, wintypes.DWORD
+    # ]
+    # ws2_32.WSASocketW.restype = ctypes.c_uint
 
-        try:
-            libc = ctypes.CDLL("libc.so.6")
-        except:
-            libc = ctypes.CDLL("/system/lib64/libc.so")
+    kernel32.CreateFileA.argtypes = [
+        wintypes.LPCSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+    ]
+    kernel32.CreateFileA.restype = wintypes.HANDLE
+    kernel32.WriteFile.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+        wintypes.LPVOID,
+    ]
+    kernel32.WriteFile.restype = wintypes.BOOL
+    kernel32.SetFilePointer.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_long,
+        wintypes.LONG,
+        wintypes.DWORD,
+    ]
+    kernel32.SetFilePointer.restype = ctypes.c_long
+    kernel32.SetEndOfFile.argtypes = [wintypes.HANDLE]
+    kernel32.SetEndOfFile.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    msvcrt._get_osfhandle.argtypes = [wintypes.INT]
+    msvcrt._get_osfhandle.restype = wintypes.HANDLE
+    # kernel32._get_osfhandle.argtypes = [wintypes.INT]
+    # kernel32._get_osfhandle.restype = wintypes.HANDLE
 
-        class iovec(ctypes.Structure):
-            _fields_ = [("iov_base", ctypes.c_void_p), ("iov_len", ctypes.c_size_t)]
+    semaphore = threading.Semaphore(CONFIG.get('TransmitFileLimit') or 2)
 
-        # 定义 splice 函数的参数类型和返回类型
-        libc.splice.argtypes = [
-            ctypes.c_int,  # int fd_in
-            ctypes.c_longlong,  # loff_t *off_in
-            ctypes.c_int,  # int fd_out
-            ctypes.c_longlong,  # loff_t *off_out
-            ctypes.c_size_t,  # size_t len
-            ctypes.c_uint,  # unsigned int flags
-        ]
-        libc.splice.restype = ctypes.c_ssize_t
-
-        # 定义 vmsplice 函数的参数类型和返回类型
-        libc.vmsplice.argtypes = [
-            ctypes.c_int,  # int fd
-            ctypes.POINTER(iovec),  # struct iovec *iov
-            ctypes.c_size_t,  # size_t nr_segs
-            ctypes.c_uint,  # unsigned int flags
-        ]
-        libc.vmsplice.restype = ctypes.c_ssize_t
-
-        libc.mmap.argtypes = [
-            ctypes.c_void_p,  # void *addr
-            ctypes.c_size_t,  # size_t length
-            ctypes.c_int,  # int prot
-            ctypes.c_int,  # int flags
-            ctypes.c_int,  # int fd
-            ctypes.c_size_t,  # off_t offset
-        ]
-        libc.mmap.restype = ctypes.c_void_p
-
-        libc.memcpy.argtypes = [
-            ctypes.c_void_p,  # void *dest
-            ctypes.c_void_p,  # const void *src
-            ctypes.c_size_t,  # size_t n
-        ]
-        libc.memcpy.restype = ctypes.c_void_p
-        libc.close.argtypes = [ctypes.c_int]
-        libc.close.restype = ctypes.c_int
-
-        libc.munmap.argtypes = [
-            ctypes.c_void_p,  # void *addr
-            ctypes.c_size_t,  # size_t length
-        ]
-        libc.munmap.restype = ctypes.c_int
-
-        libc.pipe.argtypes = [ctypes.POINTER(ctypes.c_int)]
-        libc.pipe.restype = ctypes.c_int
-
-except Exception as e:
-    logger.warning(repr(e))
-
-def send_fake_data(
-    data_len, fake_data, fake_ttl, real_data, default_ttl, sock, FAKE_sleep
-):
-    logger.info(system)
-    if system == "Windows":
+    def send_fake_data(
+        data_len,
+        fake_data,
+        fake_ttl,
+        real_data,
+        default_ttl,
+        sock,
+        FAKE_sleep
+    ):
+        import tempfile, uuid, os
         logger.warning(
-            "Desync on Windows may cause Error!"
-            "Make sure other programs are not using the TransmitFile. "
+            "Desync on Windows may cause Error! "
+            "Make sure other programs are not using the TransmitFile."
         )
         """
         BOOL TransmitFile(
@@ -189,22 +134,21 @@ def send_fake_data(
             DWORD                   dwReserved
         );
         """
-        import tempfile, uuid
         file_path = f"{tempfile.gettempdir()}\\{uuid.uuid4()}.txt"
 
         sock_file_descriptor = sock.fileno()
         logger.info("Sock file discriptor: %s", sock_file_descriptor)
         file_handle = kernel32.CreateFileA(
             bytes(file_path, encoding="utf-8"),
-            wintypes.DWORD(0x40000000 | 0x80000000),  # GENERIC_READ | GENERIC_WRITE
-            wintypes.DWORD(
-                0x00000001 | 0x00000002
-            ),  # FILE_SHARE_READ | FILE_SHARE_WRITE
+            wintypes.DWORD(0x40000000 | 0x80000000),
+            # GENERIC_READ | GENERIC_WRITE
+            wintypes.DWORD(0x00000001 | 0x00000002),
+            # FILE_SHARE_READ | FILE_SHARE_WRITE
             None,
             wintypes.DWORD(2),  # CREATE_ALWAYS
             # 0,
             0x00000100,  # FILE_FLAG_DELETE_ON_CLOSE
-            None,
+            None
         )
 
         if file_handle == -1:
@@ -213,7 +157,8 @@ def send_fake_data(
                 kernel32.GetLastError()
             )
             return False
-        logger.info("Created file successfully. file_handle=%s", file_handle)
+        logger.info(
+            "Created file successfully. file_handle=%s", file_handle)
         try:
             ov = OVERLAPPED()
             ov.hEvent = kernel32.CreateEventA(None, True, False, None)
@@ -239,36 +184,38 @@ def send_fake_data(
 
             logger.debug("%s %s %s", fake_data, real_data, data_len)
 
-            # 调用 TransmitFile 函数
-            result = mswsock.TransmitFile(
-                sock_file_descriptor,
-                file_handle,
-                wintypes.DWORD(data_len),
-                wintypes.DWORD(data_len),
-                ov,
-                None,
-                32 | 4,  # TF_USE_KERNEL_APC | TF_WRITE_BEHIND
-            )
+            with semaphore:
+                result = mswsock.TransmitFile(
+                    sock_file_descriptor,
+                    file_handle,
+                    wintypes.DWORD(data_len),
+                    wintypes.DWORD(data_len),
+                    ov,
+                    None,
+                    32 | 4,  # TF_USE_KERNEL_APC | TF_WRITE_BEHIND
+                )
 
-            if FAKE_sleep < 0.1:
-                logger.warning("Too short sleep time on Windows, set to 0.1")
-                FAKE_sleep = 0.1
+                if FAKE_sleep < 0.1:
+                    logger.warning(
+                        "Too short sleep time on Windows, set to 0.1")
+                    FAKE_sleep = 0.1
 
-            logger.info("Sleep for: %s", FAKE_sleep)
-            time.sleep(FAKE_sleep)
-            kernel32.SetFilePointer(file_handle, 0, 0, 0)
-            kernel32.WriteFile(
-                file_handle,
-                real_data,
-                data_len,
-                ctypes.byref(wintypes.DWORD(0)),
-                None,
-            )
-            kernel32.SetEndOfFile(file_handle)
-            kernel32.SetFilePointer(file_handle, 0, 0, 0)
-            set_ttl(sock, default_ttl)
+                logger.info("Sleep for: %s", FAKE_sleep)
+                time.sleep(FAKE_sleep)
+                kernel32.SetFilePointer(file_handle, 0, 0, 0)
+                kernel32.WriteFile(
+                    file_handle,
+                    real_data,
+                    data_len,
+                    ctypes.byref(wintypes.DWORD(0)),
+                    None,
+                )
+                kernel32.SetEndOfFile(file_handle)
+                kernel32.SetFilePointer(file_handle, 0, 0, 0)
+                set_ttl(sock, default_ttl)
 
-            val = kernel32.WaitForSingleObject(ov.hEvent, wintypes.DWORD(5000))
+                val = kernel32.WaitForSingleObject(
+                    ov.hEvent, wintypes.DWORD(5000))
 
             if val == 0:
                 logger.info("TransmitFile call was successful. %s", result)
@@ -291,9 +238,77 @@ def send_fake_data(
         finally:
             kernel32.CloseHandle(file_handle)
             kernel32.CloseHandle(ov.hEvent)
-            import os
             os.remove(file_path)
-    elif system in ("Linux", "Darwin", "Android"):
+
+elif system in ("Linux", "Darwin", "Android"):
+    import ctypes
+
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+    except Exception:
+        libc = ctypes.CDLL("/system/lib64/libc.so")
+
+    class iovec(ctypes.Structure):
+        _fields_ = [
+            ("iov_base", ctypes.c_void_p), ("iov_len", ctypes.c_size_t)]
+
+    # 定义 splice 函数的参数类型和返回类型
+    libc.splice.argtypes = [
+        ctypes.c_int,  # int fd_in
+        ctypes.c_longlong,  # loff_t *off_in
+        ctypes.c_int,  # int fd_out
+        ctypes.c_longlong,  # loff_t *off_out
+        ctypes.c_size_t,  # size_t len
+        ctypes.c_uint,  # unsigned int flags
+    ]
+    libc.splice.restype = ctypes.c_ssize_t
+
+    # 定义 vmsplice 函数的参数类型和返回类型
+    libc.vmsplice.argtypes = [
+        ctypes.c_int,  # int fd
+        ctypes.POINTER(iovec),  # struct iovec *iov
+        ctypes.c_size_t,  # size_t nr_segs
+        ctypes.c_uint,  # unsigned int flags
+    ]
+    libc.vmsplice.restype = ctypes.c_ssize_t
+
+    libc.mmap.argtypes = [
+        ctypes.c_void_p,  # void *addr
+        ctypes.c_size_t,  # size_t length
+        ctypes.c_int,  # int prot
+        ctypes.c_int,  # int flags
+        ctypes.c_int,  # int fd
+        ctypes.c_size_t,  # off_t offset
+    ]
+    libc.mmap.restype = ctypes.c_void_p
+
+    libc.memcpy.argtypes = [
+        ctypes.c_void_p,  # void *dest
+        ctypes.c_void_p,  # const void *src
+        ctypes.c_size_t,  # size_t n
+    ]
+    libc.memcpy.restype = ctypes.c_void_p
+    libc.close.argtypes = [ctypes.c_int]
+    libc.close.restype = ctypes.c_int
+
+    libc.munmap.argtypes = [
+        ctypes.c_void_p,  # void *addr
+        ctypes.c_size_t,  # size_t length
+    ]
+    libc.munmap.restype = ctypes.c_int
+
+    libc.pipe.argtypes = [ctypes.POINTER(ctypes.c_int)]
+    libc.pipe.restype = ctypes.c_int
+
+    def send_fake_data(
+        data_len,
+        fake_data,
+        fake_ttl,
+        real_data,
+        default_ttl,
+        sock,
+        FAKE_sleep
+    ):
         try:
             sock_file_descriptor = sock.fileno()
             logger.info("Sock file discriptor: %s", sock_file_descriptor)
@@ -310,7 +325,7 @@ def send_fake_data(
             libc.memcpy(p, fake_data, data_len)
             set_ttl(sock, fake_ttl)
             vec = iovec(p, data_len)
-            len = libc.vmsplice(fds[1], ctypes.byref(vec), 1, 2)  # SPLICE_F_GIFT
+            len = libc.vmsplice(fds[1], ctypes.byref(vec), 1, 2) # SPLICE_F_GIFT
             if len < 0:
                 raise Exception("vmsplice failed")
             logger.info("vmsplice success %d", len)
@@ -326,8 +341,8 @@ def send_fake_data(
             libc.munmap(p, ((data_len - 1) // 4 + 1) * 4)
             libc.close(fds[0])
             libc.close(fds[1])
-    else:
-        raise Exception("Unknown OS")
+else:
+    logger.warning('Unsupported OS: %s', system)
 
 async def send_data_with_fake(writer, data, sni):
     try:
