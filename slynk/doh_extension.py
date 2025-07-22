@@ -49,7 +49,7 @@ class ProxiedDoHClient:
             self.session = None
 
     async def resolve(self, domain, qtype):
-        logger.info('Resolving %s', domain)
+        logger.debug('Resolving %s', domain)
 
         try:
             params = {
@@ -74,7 +74,7 @@ class ProxiedDoHClient:
                     for answer in resp_message.answer:
                         if answer.rdtype in (dns.rdatatype.A, dns.rdatatype.AAAA):
                             result = answer[0].address
-                            logger.info('Resolved %s to %s', domain, result)
+                            logger.debug('Resolved %s to %s', domain, result)
                             return result
                 else:
                     logger.error(

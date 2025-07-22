@@ -107,7 +107,7 @@ def check_ttl(ip: str, port: int, ttl: int) -> bool:
         sock.send(b'0')
         return True
     except Exception as e:
-        logger.error(
+        logger.debug(
             'TTL %d for %s:%d failed due to %s.', ttl, ip, port, repr(e)
         )
         return False
@@ -131,7 +131,7 @@ def get_ttl(ip: str, port: int) -> int:
             l = mid + 1
 
     if ans != -1:
-        logger.info("TTL %d is reachable on %s:%d.", ans, ip, port)
+        logger.debug("TTL %d is reachable on %s:%d.", ans, ip, port)
     return ans
 
 def calc_ttl(conf: str, dist: int) -> int:
@@ -286,7 +286,8 @@ def check_key_share(data: bytes) -> tuple:
     except Exception as e:
         from .logger_with_context import logger
         logger = logger.getChild("utils")
-        logger.debug('Checking key_share failed: %s', repr(e), exc_info=True)
+        logger.warning('Failed to check key_share due to %s',
+                       repr(e), exc_info=True)
         return 0, None
 
 async def send_tls_alert(writer, client_version):
@@ -306,6 +307,14 @@ async def send_tls_alert(writer, client_version):
         writer.write(record_header + alert_payload)
         await writer.drain()
 
-alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
-def generate_conn_id():
-    return ''.join(secrets.choice(alphabet) for _ in range(6))
+count = 0
+lock = asyncio.Lock()
+async def counter():
+    global count
+    async with lock:
+        count += 1
+        if count > 0xfffff:
+            from .logger_with_context import logger
+            count = 0
+            logger.info('The counter has overflowed and has been reset.')
+        return f'{count:05x}'

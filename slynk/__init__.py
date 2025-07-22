@@ -54,7 +54,7 @@ async def upstream(reader, remote_writer, r_host):
         while (data := await reader.read(16384)) != b'':
             remote_writer.write(data)
             await remote_writer.drain()
-        logger.info('Client closed connection to %s.', r_host)
+        logger.debug('Client closed connection to %s.', r_host)
 
     except Exception as e:
         logger.error('Upstream from %s: %s', r_host, repr(e))
@@ -73,7 +73,7 @@ async def downstream(remote_reader, writer, r_host):
         while (data := await remote_reader.read(16384)) != b'':
             writer.write(data)
             await writer.drain()
-        logger.info('Remote server %s closed connection.', r_host)
+        logger.debug('Remote server %s closed connection.', r_host)
 
     except Exception as e:
         logger.error('Downstream from %s: %s', r_host, repr(e))
@@ -83,7 +83,7 @@ async def relay(
 ):
     policy = policy_ctx.get()
     if (data := await reader.read(16384)) == b'':
-        logger.error(
+        logger.debug(
             'Client closed connection to %s without sending any data.',
             r_host
         )
@@ -132,12 +132,12 @@ async def relay(
 
 async def http_handler(reader, writer):
     remote_writer = None
-    conn_id.set(utils.generate_conn_id())
+    conn_id.set(await utils.counter())
+    client_host, client_port, *_ = writer.get_extra_info('peername')
 
     try:
         header = await reader.readuntil(b'\r\n\r\n')
         request_line = header.decode('iso-8859-1').splitlines()[0]
-        client_host, client_port, *_ = writer.get_extra_info('peername')
         logger.info('%s:%d sent %s', client_host, client_port, request_line)
         method, path, _ = request_line.split()
 
@@ -169,7 +169,7 @@ async def http_handler(reader, writer):
             'PATCH', 'HEAD', 'OPTIONS', 'TRACE'
         ) and path.startswith('http://'):
             path = path[7:]
-            logger.info('Redirect HTTP to HTTPS for %s', path)
+            logger.debug('Redirect HTTP to HTTPS for %s', path)
             message = (
                 'HTTP/1.1 301 Moved Permanently\r\n'
                 f'Location: https://{path}\r\n\r\n'
@@ -197,7 +197,8 @@ async def http_handler(reader, writer):
 
 async def socks5_handler(reader, writer):
     remote_writer = None
-    conn_id.set(utils.generate_conn_id())
+    conn_id.set(await utils.counter())
+    client_host, client_port, *_ = writer.get_extra_info('peername')
 
     try:
         ver, = await reader.readexactly(1)
@@ -235,7 +236,8 @@ async def socks5_handler(reader, writer):
 
         port_bytes = await reader.readexactly(2)
         port = int.from_bytes(port_bytes, 'big')
-        logger.info('CONNECT %s:%d', address, port)
+        logger.info('%s:%d sent CONNECT %s:%d',
+                    client_host, client_port, address, port)
 
         if (
             connection := await get_connection(address, port, dns_query)
@@ -347,7 +349,7 @@ async def main(server_host=None, server_port=None, proxy_type=None):
 
     init_cache()
     server = await asyncio.start_server(handler, server_host, server_port)
-    print(f"Ready at {proxy_type}://{server_host}:{server_port}\n")
+    print(f"Ready at {proxy_type}://{server_host}:{server_port}")
 
     try:
         async with server:

@@ -32,7 +32,7 @@ def fragment_pattern(data, pattern, len_sni: int, num_pieces: int):
     fragmented_data[0]
     """
     position = data.find(pattern)
-    logger.debug('%s %d', pattern, position)
+    # logger.debug('%s %d', pattern, position)
     if position == -1:
         return fragment_content(data, 2 * num_pieces)
 
@@ -46,7 +46,7 @@ def fragment_pattern(data, pattern, len_sni: int, num_pieces: int):
     if len_sni > len(pattern) // 2:
         len_sni = len(pattern) // 2
         num = 2
-        logger.info("len_sni too big so it has been set to %d.", len_sni)
+        logger.warning("len_sni too big so it has been set to %d.", len_sni)
     else:
         num = pattern_length // len_sni
         if num * len_sni < pattern_length:
@@ -68,11 +68,11 @@ async def send_chunks(writer, data, sni):
     '''Send fragmentted data'''
     try:
         if (sock := writer.get_extra_info('socket')) is None:
-            raise RuntimeError('Failed to get socket of writer.')
+            raise RuntimeError('Could not get valid socket from writer')
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         policy = policy_ctx.get()
 
-        logger.info('To send: %d bytes.', len(data))
+        logger.debug('To send: %d bytes.', len(data))
         # logger.debug('To send: %s', repr(data))
         base_header = data[:3]
         record = data[5:]
@@ -90,10 +90,10 @@ async def send_chunks(writer, data, sni):
                 + fragmented_tls_data[i]
             )
             tcp_data += tmp
-            logger.debug('Added piece: %d bytes.', len(tmp))
+            # logger.debug('Added piece: %d bytes.', len(tmp))
             # logger.debug('Added piece: %s', tmp)
 
-        logger.info('TLS fragmented: %d bytes.', len(tcp_data))
+        logger.debug('TLS fragmented: %d bytes.', len(tcp_data))
         # logger.debug('TLS fragmented: %s', repr(tcp_data))
 
         lenl = 0
@@ -113,15 +113,15 @@ async def send_chunks(writer, data, sni):
         for packet in splited_tcp_data:
             writer.write(packet)
             await writer.drain()
-            logger.debug(
+            '''logger.debug(
                 "TCP sent: %d bytes. And 'll sleep for %s seconds.",
                 len(packet),
                 policy["send_interval"]
-            )
+            )'''
             # logger.debug("TCP sent: %s", repr(packet))
             await asyncio.sleep(policy["send_interval"])
 
-        logger.info('All the chunks have been sent.')
+        logger.info('ClientHello is sent in its entirety.')
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
 
     except Exception as e:

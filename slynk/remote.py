@@ -34,7 +34,7 @@ def ip_redirect(ip: str) -> str:
         mapped_ip = utils.transform_ip(ip, mapped_ip)
     if ip == mapped_ip:
         return ip
-    logger.info("Redirect %s to %s", ip, mapped_ip)
+    logger.debug("Redirect %s to %s", ip, mapped_ip)
     return ip_redirect(mapped_ip) if chained else mapped_ip
 
 async def get_connection(host, port, dns_query, protocol=6):
@@ -48,7 +48,7 @@ async def get_connection(host, port, dns_query, protocol=6):
         ip = host
     elif DNS_cache.get(host):
         ip = DNS_cache[host][0]
-        logger.info('DNS cache for %s is %s.', host, ip)
+        logger.debug('DNS cache for %s is %s.', host, ip)
     else:
         if policy.get('IPv6_first'):
             try:
@@ -80,17 +80,17 @@ async def get_connection(host, port, dns_query, protocol=6):
                 if cnt_upd_DNS_cache >= CONFIG["DNS_cache_update_interval"]:
                     cnt_upd_DNS_cache = 0
                     await utils.to_thread(write_DNS_cache)
-            logger.info('DNS cache for %s to %s.', host, ip)
+            logger.debug('DNS cache for %s to %s.', host, ip)
 
     if host != ip:
         ip = ip_redirect(ip)
     policy = {**default_policy, **match_ip(ip), **domain_policy}
 
     if policy["mode"] == "FAKEdesync" and policy['fake_ttl'][0] == 'q':
-        logger.info('TTL rule for %s is %s.', ip, policy['fake_ttl'])
+        logger.debug('TTL rule for %s is %s.', ip, policy['fake_ttl'])
         if TTL_cache.get(ip):
             val = TTL_cache[ip]
-            logger.info("TTL cache for %s is %s.", ip, val)
+            logger.debug("TTL cache for %s is %s.", ip, val)
         else:
             val = await utils.to_thread(utils.get_ttl, ip, port)
             if val == -1:
@@ -105,12 +105,12 @@ async def get_connection(host, port, dns_query, protocol=6):
                     ]:
                         cnt_upd_TTL_cache = 0
                         await utils.to_thread(write_TTL_cache)
-                logger.info('TTL cache for %s to %d.', ip, val)
+                logger.debug('TTL cache for %s to %d.', ip, val)
         policy['fake_ttl'] = utils.calc_ttl(policy['fake_ttl'], val)
-        logger.info('Fake TTL for %s is %d.', ip, policy['fake_ttl'])
+        logger.debug('Fake TTL for %s is %d.', ip, policy['fake_ttl'])
 
     policy_ctx.set(policy)
-    logger.info('%s --> %s', host, policy)
+    logger.debug('%s -> %s', host, policy)
 
     if protocol == 6:  # TCP
         try:

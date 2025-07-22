@@ -3,7 +3,13 @@ var whiteList = new Set([
   "wang",
   "mozilla.org",
   "firefox.com",
+  "microsoft.com",
+  "microsoftonline.com",
   "bing.com",
+  "office.com",
+  "skype.com",
+  "safebrowsing.google.com",
+  "o.pki.goog",
   "0.zone",
   "00.net",
   "000.link",
@@ -119650,8 +119656,9 @@ var whiteList = new Set([
   "zzzzzz.me"
 ]);
 
-var exceptionList = new Set([
-  "looks.wang"
+var exceptions = new Set([
+  "looks.wang",
+  "nav-edge.smartscreen.microsoft.com"
 ]);
 
 var proxy = "PROXY {{host}}:{{port}}";
@@ -119662,7 +119669,7 @@ function FindProxyForURL(url, host) {
     var pos = host.lastIndexOf('.');
     while (pos > 0) {
         suffix = host.substring(pos + 1);
-        if (whiteList.has(suffix)) return direct;
+        if (!exceptions.has(suffix) && whiteList.has(suffix)) return direct;
         pos = host.lastIndexOf('.', pos - 1);
     }
     if (!exceptionList.has(host) && whiteList.has(host)) return direct;

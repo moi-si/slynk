@@ -137,7 +137,7 @@ if system == "Windows":
         file_path = f"{tempfile.gettempdir()}\\{uuid.uuid4()}.txt"
 
         sock_file_descriptor = sock.fileno()
-        logger.info("Sock file discriptor: %s", sock_file_descriptor)
+        logger.debug("Sock file discriptor: %s", sock_file_descriptor)
         file_handle = kernel32.CreateFileA(
             bytes(file_path, encoding="utf-8"),
             wintypes.DWORD(0x40000000 | 0x80000000),
@@ -157,7 +157,7 @@ if system == "Windows":
                 kernel32.GetLastError()
             )
             return False
-        logger.info(
+        logger.debug(
             "Created file successfully. file_handle=%s", file_handle)
         try:
             ov = OVERLAPPED()
@@ -200,7 +200,7 @@ if system == "Windows":
                         "Too short sleep time on Windows, set to 0.1")
                     FAKE_sleep = 0.1
 
-                logger.info("Sleep for: %s", FAKE_sleep)
+                logger.debug("Sleep for: %s", FAKE_sleep)
                 time.sleep(FAKE_sleep)
                 kernel32.SetFilePointer(file_handle, 0, 0, 0)
                 kernel32.WriteFile(
@@ -311,29 +311,29 @@ elif system in ("Linux", "Darwin", "Android"):
     ):
         try:
             sock_file_descriptor = sock.fileno()
-            logger.info("Sock file discriptor: %s", sock_file_descriptor)
+            logger.debug("Sock file discriptor: %s", sock_file_descriptor)
             fds = (ctypes.c_int * 2)()
             if libc.pipe(fds) < 0:
                 raise Exception("Failed to create pipe")
-            logger.info("Successfullly create pipe. %d %d", fds[0], fds[1])
+            logger.debug("Successfullly create pipe. %d %d", fds[0], fds[1])
             p = libc.mmap(
                 0, ((data_len - 1) // 4 + 1) * 4, 0x1 | 0x2, 0x2 | 0x20, 0, 0
             )  # PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS
             if p == ctypes.c_void_p(-1):
                 raise Exception("mmap failed")
-            logger.info("mmap success %s", p)
+            logger.debug("mmap success %s", p)
             libc.memcpy(p, fake_data, data_len)
             set_ttl(sock, fake_ttl)
             vec = iovec(p, data_len)
             len = libc.vmsplice(fds[1], ctypes.byref(vec), 1, 2) # SPLICE_F_GIFT
             if len < 0:
                 raise Exception("vmsplice failed")
-            logger.info("vmsplice success %d", len)
+            logger.debug("vmsplice success %d", len)
             len = libc.splice(fds[0], 0, sock_file_descriptor, 0, data_len, 0)
             if len < 0:
                 raise Exception("splice failed")
-            logger.info("splice success %d", len)
-            logger.info("Sleep for: %s seconds.", FAKE_sleep)
+            logger.debug("splice success %d", len)
+            logger.debug("Sleep for %s seconds.", FAKE_sleep)
             time.sleep(FAKE_sleep)
             libc.memcpy(p, real_data, data_len)
             set_ttl(sock, default_ttl)
@@ -342,14 +342,14 @@ elif system in ("Linux", "Darwin", "Android"):
             libc.close(fds[0])
             libc.close(fds[1])
 else:
-    logger.warning('Unsupported OS: %s', system)
+    logger.error('Unsupported OS: %s', system)
 
-async def send_data_with_fake(writer, data, sni):
+async def send_data_with_fake(writer, data: bytes, sni: bytes):
     try:
         if (sock := writer.get_extra_info('socket')) is None:
             raise RuntimeError('Failed to get socket of writer')
         policy = policy_ctx.get()
-        logger.info("To send: %d bytes. ", len(data))
+        logger.debug("To send: %d bytes. ", len(data))
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         default_ttl = sock.getsockopt(socket.IPPROTO_IP, socket.IP_TTL)
         try:
@@ -373,7 +373,7 @@ async def send_data_with_fake(writer, data, sni):
             sock,
             FAKE_sleep
         ):
-            logger.info("Fake data sent.")
+            logger.debug("Fake data sent.")
         else:
             raise RuntimeError("Failed to send fake data.")
 
@@ -392,7 +392,7 @@ async def send_data_with_fake(writer, data, sni):
 
         if policy.get("len_tcp_sni") >= sni_len:
             policy["len_tcp_sni"] = sni_len // 2
-            logger.info(
+            logger.warning(
                 "len_tcp_sni too big, set to %d", policy.get("len_tcp_sni")
             )
 
@@ -406,14 +406,14 @@ async def send_data_with_fake(writer, data, sni):
             sock,
             FAKE_sleep
         ):
-            logger.info("Fake sni sent.")
+            logger.debug("Fake sni sent.")
         else:
             raise RuntimeError("Failed to send fake SNI.")
 
         data = data[policy.get("len_tcp_sni"):]
         writer.write(data)
         await writer.drain()
-        logger.info('Finishied.')
+        logger.info('ClientHello is sent in its entirety.')
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
 
     except Exception as e:
