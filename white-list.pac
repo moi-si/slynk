@@ -1,5 +1,6 @@
-var domains = new Set([
+var whiteList = new Set([
   "cn",
+  "wang",
   "mozilla.org",
   "firefox.com",
   "bing.com",
@@ -119649,17 +119650,21 @@ var domains = new Set([
   "zzzzzz.me"
 ]);
 
-var proxy = "PROXY 127.0.0.1:{{port}}";
-var direct = "DIRECT;"
+var exceptionList = new Set([
+  "looks.wang"
+]);
+
+var proxy = "PROXY {{host}}:{{port}}";
+var direct = "DIRECT;";
 
 function FindProxyForURL(url, host) {
     var suffix;
     var pos = host.lastIndexOf('.');
     while (pos > 0) {
         suffix = host.substring(pos + 1);
-        if (domains.has(suffix)) return direct;
+        if (whiteList.has(suffix)) return direct;
         pos = host.lastIndexOf('.', pos - 1);
     }
-    if (domains.has(host)) return direct;
-    else return proxy;
+    if (!exceptionList.has(host) && whiteList.has(host)) return direct;
+    return proxy;
 }

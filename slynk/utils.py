@@ -4,6 +4,7 @@ import struct
 import asyncio
 import functools
 import contextvars
+import secrets
 
 async def to_thread(func, /, *args, **kwargs):
     """Asynchronously run function *func* in a separate thread.
@@ -68,6 +69,16 @@ def transform_ip(ip: str, target_network: str) -> str:
         (target_net_int & network_mask) | (ip_int & host_mask)
     )
     return str(new_ip)
+
+def get_lan_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # IPv4 only
+    try:
+        s.connect(('192.168.1.1', 80))
+        return s.getsockname()[0]
+    except Exception:
+        return None
+    finally:
+        s.close()
 
 def is_ip_address(s: str) -> bool:
     try:
@@ -294,3 +305,7 @@ async def send_tls_alert(writer, client_version):
         )
         writer.write(record_header + alert_payload)
         await writer.drain()
+
+alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
+def generate_conn_id():
+    return ''.join(secrets.choice(alphabet) for _ in range(6))

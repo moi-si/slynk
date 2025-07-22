@@ -9,14 +9,9 @@ from .config import (
     CONFIG,
     basepath,
     init_cache,
-    DNS_cache,
-    TTL_cache,
-    write_DNS_cache,
-    write_TTL_cache
+    save_cache
 )
-from .logger_with_context import (
-    logger, client_port, policy_ctx, force_close
-)
+from .logger_with_context import logger, conn_id, policy_ctx, force_close
 from .remote import get_connection
 from . import fragmenter
 from . import fake_desync
@@ -30,33 +25,6 @@ def set_socket_linger_rst(writer):
     sock.setsockopt(
         socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0)
     )
-
-def make_pac_resp(server_port):
-    global PAC_RESP
-    try:
-        if os.path.exists('proxy.pac'):
-            pac_path = 'proxy.pac'
-        elif os.path.exists(path := os.path.join(basepath, 'proxy.pac')):
-            pac_path = path
-        else:
-            raise FileNotFoundError('PAC file not found')
-        with open(pac_path, 'rb') as f:
-            pac_file = f.read().replace(
-                b'{{port}}', str(server_port).encode('iso-8859-1')
-            )
-            PAC_RESP = (
-                'HTTP/1.1 200 OK\r\n'
-                'Content-Type:application/x-ns-proxy-autoconfig\r\n'
-                f'Content-Length: {len(pac_file)}\r\n\r\n'.encode('iso-8859-1')
-                + pac_file
-            )
-            print('PAC is ready.')
-    except Exception as e:
-        print(
-            f'Failed to make PAC response due to {repr(e)}.',
-            'The server will start, but the PAC file will not be served.'
-        )
-        PAC_RESP = b'HTTP/1.1 404 Not Found\r\n\r\n'
 
 async def close_writers(writer, remote_writer):
     logger.debug('Closing writers...')
@@ -130,11 +98,11 @@ async def relay(
         await remote_writer.drain()
     else:
         if policy.get('BySNIfirst') and r_host != (sni_str := sni.decode()):
-            logger.info('Remote host will be changed to %s.', sni_str)
             connection = await get_connection(sni_str, r_port, resolver)
             if connection is None:
                 logger.warning('New connection failed. Falling back.')
             else:
+                logger.info('Remote host has been changed to %s.', sni_str)
                 remote_writer.transport.abort()
                 remote_reader, remote_writer = connection
                 r_host = sni_str
@@ -160,15 +128,17 @@ async def relay(
         for task in pending:
             task.cancel()
         await asyncio.gather(*pending, return_exceptions=True)
+    return remote_writer
 
 async def http_handler(reader, writer):
     remote_writer = None
-    client_port.set(writer.get_extra_info('peername')[1])
+    conn_id.set(utils.generate_conn_id())
 
     try:
         header = await reader.readuntil(b'\r\n\r\n')
         request_line = header.decode('iso-8859-1').splitlines()[0]
-        logger.info(request_line)
+        client_host, client_port, *_ = writer.get_extra_info('peername')
+        logger.info('%s:%d sent %s', client_host, client_port, request_line)
         method, path, _ = request_line.split()
 
         if path == '/proxy.pac':
@@ -181,7 +151,8 @@ async def http_handler(reader, writer):
 
         elif method == 'CONNECT':
             r_host, r_port = path.split(':')
-            connection = await get_connection(r_host, int(r_port), dns_query)
+            r_port = int(r_port)
+            connection = await get_connection(r_host, r_port, dns_query)
             if connection is None:
                 writer.write(b'HTTP/1.1 502 Bad Gateway\r\n\r\n')
                 await writer.drain()
@@ -189,7 +160,7 @@ async def http_handler(reader, writer):
             writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
             await writer.drain()
             remote_reader, remote_writer = connection
-            await relay(
+            remote_writer = await relay(
                 reader, writer, remote_reader, remote_writer, r_host, r_port
             )
 
@@ -216,22 +187,24 @@ async def http_handler(reader, writer):
 
     except Exception as e:
         logger.error(
-            'HTTP Handler exception for: %s', repr(e), exc_info=True
+            'Unexpected exception from HTTP handler: %s',
+            repr(e), exc_info=True
         )
+
 
     finally:
         await close_writers(writer, remote_writer)
 
 async def socks5_handler(reader, writer):
     remote_writer = None
-    client_port.set(writer.get_extra_info('peername')[1])
+    conn_id.set(utils.generate_conn_id())
 
     try:
-        ver = await reader.readexactly(1)
-        if ver != b'\x05':
+        ver, = await reader.readexactly(1)
+        if ver != 0x05:
             raise ValueError('Not SOCKS5', ver)
 
-        nmethods = (await reader.readexactly(1))[0]
+        nmethods, = await reader.readexactly(1)
         methods = await reader.readexactly(nmethods)
 
         if 0x00 not in methods:
@@ -275,7 +248,7 @@ async def socks5_handler(reader, writer):
         writer.write(b'\x05\x00\x00\x01' + b'\x00\x00\x00\x00' + b'\x00\x00')
         await writer.drain()
         remote_reader, remote_writer = connection
-        await relay(
+        remote_writer = await relay(
             reader, writer, remote_reader, remote_writer, address, port
         )
 
@@ -287,26 +260,62 @@ async def socks5_handler(reader, writer):
 
     except Exception as e:
         logger.error(
-            'SOCKS5 Handler exception for: %s', repr(e), exc_info=True
+            'Unexpected exception from SOCKS5 handler: %s',
+            repr(e), exc_info=True
         )
 
     finally:
         await close_writers(writer, remote_writer)
 
-async def main(server_port=None, proxy_type=None):
+def generate_pac_resp(server_port):
+    global PAC_RESP
+    try:
+        pac_path = CONFIG.get('pac_file') or 'proxy.pac'
+        if not os.path.exists(pac_path):
+            pac_path = os.path.join(basepath, 'proxy.pac')
+        with open(pac_path, 'rb') as f:
+            pac_file = f.read().replace(
+                b'{{port}}', str(server_port).encode('iso-8859-1')
+            ).replace(
+                b'{{host}}', PAC_HOST.encode('iso-8859-1')
+            )
+            PAC_RESP = (
+                'HTTP/1.1 200 OK\r\n'
+                'Content-Type: application/x-ns-proxy-autoconfig\r\n'
+                f'Content-Length: {len(pac_file)}\r\n\r\n'.encode('iso-8859-1')
+                + pac_file
+            )
+            print('PAC is ready.')
+    except Exception as e:
+        print(
+            f'Failed to generate PAC response due to {repr(e)}.',
+            'The server will start, but the PAC file will not be served.'
+        )
+        PAC_RESP = b'HTTP/1.1 404 Not Found\r\n\r\n'
+
+async def main(server_host=None, server_port=None, proxy_type=None):
     print(f'Slynk v{__version__} - A local relay to protect HTTPS connections')
 
     doh = False
 
-    server_port = server_port if server_port else CONFIG.get('server_port')
+    global PAC_HOST
+    server_host = server_host or CONFIG.get('server_host') or '0.0.0.0'
+    if server_host == '127.0.0.1':
+        PAC_HOST = server_host
+    else:
+        PAC_HOST = CONFIG.get('pac_host') or utils.get_lan_ip()
+        if not PAC_HOST:
+            raise RuntimeError('Failed to get PAC host')
+
+    server_port = server_port or CONFIG.get('server_port') or 3500
     if server_port is None:
-        raise ValueError('Port not specified')
+        raise ValueError('Server port not specified')
     if server_port < 0 or server_port > 65535:
         raise ValueError(f'Port {server_port} is invalid')
 
-    proxy_type = proxy_type if proxy_type else CONFIG.get('proxy_type')
+    proxy_type = proxy_type or CONFIG.get('proxy_type')
     if proxy_type == 'http':
-        make_pac_resp(server_port)
+        generate_pac_resp(server_port)
         handler = http_handler
     elif proxy_type == 'socks5':
         handler = socks5_handler
@@ -337,8 +346,8 @@ async def main(server_port=None, proxy_type=None):
     print('DNS client is ready.')
 
     init_cache()
-    server = await asyncio.start_server(handler, '127.0.0.1', server_port)
-    print(f"Ready at {proxy_type}://127.0.0.1:{server_port}\n")
+    server = await asyncio.start_server(handler, server_host, server_port)
+    print(f"Ready at {proxy_type}://{server_host}:{server_port}\n")
 
     try:
         async with server:
@@ -346,11 +355,5 @@ async def main(server_port=None, proxy_type=None):
     finally:
         if doh:
             await resolver.close_session()
-        print()
-        if DNS_cache:
-            write_DNS_cache()
-            print('DNS cache saved.')
-        if TTL_cache:
-            write_TTL_cache()
-            print('TTL cache saved.')
+        save_cache()
         print('Exited.')

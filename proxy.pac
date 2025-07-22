@@ -155,7 +155,8 @@ var shexps = [
   "*://skyapi.onedrive.live.com/*"
 ];
 
-var proxy = "PROXY 127.0.0.1:{{port}};";
+var proxy = "PROXY {{host}}:{{port}};";
+var direct = "DIRECT;";
 
 function shExpMatchs(url, shexps) {
   for (const pattern of shexps) {
@@ -165,14 +166,13 @@ function shExpMatchs(url, shexps) {
 };
 
 function FindProxyForURL(url, host) {
-    var suffix;
-    var pos = host.lastIndexOf('.');
-    while (pos > 0) {
-        suffix = host.substring(pos + 1);
-        if (domains.has(suffix)) return proxy;
-        pos = host.lastIndexOf('.', pos - 1);
-    }
-    if (domains.has(host)) return proxy;
-    else if (shExpMatchs(url, shexps)) return proxy;
-    else return "DIRECT;";
+  var suffix;
+  var pos = host.lastIndexOf('.');
+  while (pos > 0) {
+      suffix = host.substring(pos + 1);
+      if (domains.has(suffix)) return proxy;
+      pos = host.lastIndexOf('.', pos - 1);
+  }
+  if (domains.has(host) || shExpMatchs(url, shexps)) return proxy;
+  else return direct;
 }

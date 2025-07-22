@@ -6,7 +6,7 @@ import random
 import time
 
 from . import trie_utils
-from .utils import ip_to_binary_prefix
+from .utils import ip_to_binary_prefix, get_lan_ip
 
 basepath = Path(__file__).parent.parent
 
@@ -19,8 +19,8 @@ with open(config_path, "rb") as f:
 
 default_policy = CONFIG['default_policy']
 fake_packet = default_policy.get('fake_packet')
-if fake_packet:
-    default_policy['fake_packet'] = fake_packet.encode(encoding='iso-8859-1')
+default_policy['fake_packet'] = fake_packet.encode(encoding='iso-8859-1')
+
 if default_policy["fake_ttl"] == "auto":
     # Temp code for auto fake_ttl
     default_policy["fake_ttl"] = random.randint(10, 60)
@@ -101,24 +101,29 @@ def match_ip(ip: str) -> dict:
     return ip_policy if ip_policy else {}
 
 TTL_cache = {}  # TTL for each IP
+old_TTL_cache = {}
 DNS_cache = {}  # DNS cache for each domain
+old_DNS_cache = {}
 
 def init_cache():
+    global old_DNS_cache
     try:
         with open("DNS_cache.json", "rb") as f:
             DNS_cache.update(json.load(f))
         t = time.time()
-        tmp = DNS_cache.copy()
-        for domain, value in tmp.items():
-            expries = value.get('expries')
+        old_DNS_cache = DNS_cache.copy()
+        for domain, value in old_DNS_cache.items():
+            expries = value[1]
             if expries and expries <= t:
                 DNS_cache.pop(domain)
     except Exception as e:
         print(f'DNS_cache.json: {repr(e)}')
 
+    global old_TTL_cache
     try:
         with open("TTL_cache.json", "rb") as f:
             TTL_cache.update(json.load(f))
+        old_TTL_cache = TTL_cache.copy()
     except Exception as e:
         print(f'TTL_cache.json: {repr(e)}')
 
@@ -129,3 +134,11 @@ def write_DNS_cache():
 def write_TTL_cache():
     with open("TTL_cache.json", "w") as f:
         json.dump(TTL_cache, f)
+
+def save_cache():
+    if old_DNS_cache != DNS_cache:
+        write_DNS_cache()
+        print('DNS cache saved.')
+    if old_TTL_cache != TTL_cache:
+        write_TTL_cache()
+        print('TTL cache saved.')
