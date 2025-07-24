@@ -2,6 +2,7 @@ var domains = new Set([
   "google.com",
   "google.com.hk",
   "google.dev",
+  "gmail.com",
   "googlesource.com",
   "gstatic.com",
   "googleapis.com",
@@ -28,6 +29,7 @@ var domains = new Set([
   "cloudflare-dns.com",
   "one.one.one.one",
   "workers.dev",
+  "imagedelivery.net",
   "duckduckgo.com",
   "ddg.gg",
   "ddg.co",
@@ -125,6 +127,7 @@ var domains = new Set([
   "typora.io",
   "notion.site",
   "dlsite.com",
+  "asmr.one",
   "flickr.com",
   "medium.com"
 ]);
@@ -172,13 +175,14 @@ function shExpMatchs(url, shexps) {
 };
 
 function FindProxyForURL(url, host) {
+  if (exceptions.has(host)) return direct;
   var suffix;
   var pos = host.lastIndexOf('.');
   while (pos > 0) {
       suffix = host.substring(pos + 1);
-      if (!exceptions.has(host) && domains.has(suffix)) return proxy;
+      if (domains.has(suffix)) return proxy;
       pos = host.lastIndexOf('.', pos - 1);
   }
-  if ((!exceptions.has(host)) && (domains.has(host) || shExpMatchs(url, shexps))) return proxy;
-  else return direct;
+  if (domains.has(host) || shExpMatchs(url, shexps)) return proxy;
+  return direct;
 }

@@ -119665,13 +119665,14 @@ var proxy = "PROXY {{host}}:{{port}}";
 var direct = "DIRECT;";
 
 function FindProxyForURL(url, host) {
+    if exceptions.has(host) return proxy;
     var suffix;
     var pos = host.lastIndexOf('.');
     while (pos > 0) {
         suffix = host.substring(pos + 1);
-        if (!exceptions.has(suffix) && whiteList.has(suffix)) return direct;
+        if (whiteList.has(suffix)) return direct;
         pos = host.lastIndexOf('.', pos - 1);
     }
-    if (!exceptionList.has(host) && whiteList.has(host)) return direct;
+    if (whiteList.has(host)) return direct;
     return proxy;
 }
