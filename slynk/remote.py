@@ -40,7 +40,7 @@ def ip_redirect(ip: str) -> str:
 async def get_connection(host, port, dns_query, protocol=6):
     domain_policy = match_domain(host)
     policy = {**default_policy, **domain_policy}
-    old_port, port = port, policy.setdefault('port', 443)
+    old_port, port = port, policy.setdefault('port', port)
 
     if policy.get('IP'):
         ip = policy['IP']
@@ -115,7 +115,8 @@ async def get_connection(host, port, dns_query, protocol=6):
     if protocol == 6:  # TCP
         try:
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(ip, port), timeout=15
+                asyncio.open_connection(ip, port),
+                timeout=policy.get('TCP_timeout') or 15
             )
             return reader, writer
         except Exception as e:

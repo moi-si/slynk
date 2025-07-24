@@ -6,7 +6,7 @@ import random
 import time
 
 from . import trie_utils
-from .utils import ip_to_binary_prefix, get_lan_ip
+from .utils import ip_to_binary_prefix, get_lan_ip, expand_pattern
 
 basepath = Path(__file__).parent.parent
 
@@ -28,41 +28,28 @@ if default_policy["fake_ttl"] == "auto":
 if (match_mode := CONFIG.get('match_mode')) == 'ac':
     import copy
     import ahocorasick  # pip install ahocorasick-python
-    domain_policies = ahocorasick.AhoCorasick(
+
+    expanded_policies = {}
+    for key in CONFIG['domain_policies'].keys():
+        for pattern in expand_pattern(key):
+            expanded_policies[pattern] = CONFIG['domain_policies'][key]
+    CONFIG['domain_policies'] = expanded_policies
+    matcher = ahocorasick.AhoCorasick(
         *CONFIG['domain_policies'].keys()
     )
 
     def match_domain(host):
-        if matched_domains := domain_policies.search(f'^{host}$'):
+        if matched_domains := matcher.search(f'^{host}$'):
             return copy.deepcopy(
                 CONFIG['domain_policies'].get(
                     sorted(matched_domains, key=len, reverse=True)[0]
                 )
             )
-
         else:
             return {}
 
 elif match_mode == 'trie':
     matcher = trie_utils.DomainMatcher()
-
-    def expand_pattern(s: str):
-        left_index, right_index = s.find('('), s.find(')')
-        if left_index == -1 and right_index == -1:
-            return s.split('/')
-        if -1 in (left_index, right_index):
-            raise ValueError("Both '(' and ')' must be present", s)
-        if left_index > right_index:
-            raise ValueError("'(' must occur before ')'", s)
-        if right_index == left_index + 1:
-            raise ValueError(
-                'A vaild string should exist between a pair of parentheses', s
-            )
-        prefix = s[:left_index]
-        suffix = s[right_index + 1:]
-        inner = s[left_index + 1:right_index]
-        return (prefix + part + suffix for part in inner.split('/'))
-
     expanded_policies = {}
     for key in CONFIG['domain_policies'].keys():
         for item in key.replace(' ', '').split(','):
@@ -95,10 +82,9 @@ for k, v in CONFIG['ip_policies'].items():
 
 def match_ip(ip: str) -> dict:
     if ':' in ip:
-        ip_policy = ipv6_map.search(ip_to_binary_prefix(ip))
+        return ipv6_map.search(ip_to_binary_prefix(ip))
     else:
-        ip_policy = ipv4_map.search(ip_to_binary_prefix(ip))
-    return ip_policy if ip_policy else {}
+        return ipv4_map.search(ip_to_binary_prefix(ip))
 
 TTL_cache = {}  # TTL for each IP
 old_TTL_cache = {}

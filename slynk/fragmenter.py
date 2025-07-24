@@ -121,7 +121,7 @@ async def send_chunks(writer, data, sni):
             # logger.debug("TCP sent: %s", repr(packet))
             await asyncio.sleep(policy["send_interval"])
 
-        logger.info('ClientHello is sent in its entirety.')
+        logger.info('ClientHello sent in %d chunks', len(splited_tcp_data))
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
 
     except Exception as e:

@@ -2,7 +2,7 @@
     "console_log_level": "INFO",
     "log_file": "log.txt",
     "file_log_level": "DEBUG",
-    "server_host": "0.0.0.0",
+    "server_host": "127.0.0.1",
     "server_port": 3500,
     "pac_file": "proxy.pac",
     "pac_host": null,

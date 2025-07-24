@@ -84,7 +84,7 @@ class Trie:
         __slots__ = ('children', 'val')
         def __init__(self):
             self.children = [None, None]
-            self.val = None
+            self.val = {}
 
     __slots__ = ('root',)
     def __init__(self):
@@ -101,7 +101,7 @@ class Trie:
 
     def search(self, prefix):
         node = self.root
-        ans = None
+        ans = {}
         for bit in prefix:
             index = int(bit)
             if node.val is not None:

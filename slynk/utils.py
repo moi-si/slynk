@@ -318,3 +318,20 @@ async def counter():
             count = 0
             logger.info('The counter has overflowed and has been reset.')
         return f'{count:05x}'
+
+def expand_pattern(s: str):
+    left_index, right_index = s.find('('), s.find(')')
+    if left_index == -1 and right_index == -1:
+        return s.split('/')
+    if -1 in (left_index, right_index):
+        raise ValueError("Both '(' and ')' must be present", s)
+    if left_index > right_index:
+        raise ValueError("'(' must occur before ')'", s)
+    if right_index == left_index + 1:
+        raise ValueError(
+            'A vaild string should exist between a pair of parentheses', s
+        )
+    prefix = s[:left_index]
+    suffix = s[right_index + 1:]
+    inner = s[left_index + 1:right_index]
+    return (prefix + part + suffix for part in inner.split('/'))

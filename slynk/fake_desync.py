@@ -413,7 +413,7 @@ async def send_data_with_fake(writer, data: bytes, sni: bytes):
         data = data[policy.get("len_tcp_sni"):]
         writer.write(data)
         await writer.drain()
-        logger.info('ClientHello is sent in its entirety.')
+        logger.info('ClientHello fully sent with fake packets')
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
 
     except Exception as e:

@@ -27,7 +27,6 @@ def set_socket_linger_rst(writer):
     )
 
 async def close_writers(writer, remote_writer):
-    logger.debug('Closing writers...')
     try:
         if force_close.get() is True:
             if remote_writer:
@@ -43,7 +42,6 @@ async def close_writers(writer, remote_writer):
             writer.close()
             tasks.append(asyncio.create_task(writer.wait_closed()))
             await asyncio.gather(*tasks, return_exceptions=True)
-        logger.debug('Closed writers successfully.')
     except Exception as e:
         logger.error(
             'Failed to close writers due to %s.', repr(e), exc_info=True
@@ -62,8 +60,8 @@ async def upstream(reader, remote_writer, r_host):
 async def downstream(remote_reader, writer, r_host):
     try:
         if (data := await remote_reader.read(16384)) == b'':
-            logger.error(
-                'Remote server %s closed connection without sending any data.',
+            logger.warning(
+                'Remote server %s closed connection without sending data.',
                 r_host
             )
             return
@@ -83,8 +81,8 @@ async def relay(
 ):
     policy = policy_ctx.get()
     if (data := await reader.read(16384)) == b'':
-        logger.debug(
-            'Client closed connection to %s without sending any data.',
+        logger.info(
+            'Client closed connection to %s without sending data.',
             r_host
         )
         return
@@ -96,6 +94,7 @@ async def relay(
     if (sni := utils.extract_sni(data)) is None:
         remote_writer.write(data)
         await remote_writer.drain()
+        logger.info('First packet sent directly')
     else:
         if policy.get('BySNIfirst') and r_host != (sni_str := sni.decode()):
             connection = await get_connection(sni_str, r_port, resolver)
@@ -114,9 +113,10 @@ async def relay(
         elif mode == 'DIRECT':
             remote_writer.write(data)
             await remote_writer.drain()
+            logger.info('ClientHello sent directly')
         elif mode == 'GFWlike':
             force_close.set(True)
-            raise RuntimeError(f'{r_host} has been banned.')
+            raise RuntimeError(f'{r_host} banned')
 
         tasks = (
             asyncio.create_task(upstream(reader, remote_writer, r_host)),
@@ -157,7 +157,7 @@ async def http_handler(reader, writer):
                 writer.write(b'HTTP/1.1 502 Bad Gateway\r\n\r\n')
                 await writer.drain()
                 return
-            writer.write(b'HTTP/1.1 200 Connection established\r\n\r\n')
+            writer.write(b'HTTP/1.1 200 Connection Established\r\n\r\n')
             await writer.drain()
             remote_reader, remote_writer = connection
             remote_writer = await relay(
