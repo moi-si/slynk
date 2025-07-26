@@ -8,6 +8,7 @@ import struct
 from .config import (
     CONFIG,
     basepath,
+    parse_args,
     init_cache,
     save_cache
 )
@@ -269,25 +270,32 @@ async def socks5_handler(reader, writer):
     finally:
         await close_writers(writer, remote_writer)
 
-def generate_pac_resp(server_port):
+def generate_pac_resp(server_host, server_port):
     global PAC_RESP
     try:
         pac_path = CONFIG.get('pac_file') or 'proxy.pac'
         if not os.path.exists(pac_path):
             pac_path = os.path.join(basepath, 'proxy.pac')
         with open(pac_path, 'rb') as f:
+            if server_host == '127.0.0.1':
+                pac_host = server_host
+            elif server_host == '0.0.0.0':
+                pac_host = CONFIG.get('pac_host') or utils.get_lan_ip()
+            else:
+                pac_host = CONFIG.get('pac_host') or server_host or utils.get_lan_ip()
+            if not pac_host:
+                raise RuntimeError('Failed to get PAC host')
             pac_file = f.read().replace(
-                b'{{port}}', str(server_port).encode('iso-8859-1')
-            ).replace(
-                b'{{host}}', PAC_HOST.encode('iso-8859-1')
-            )
+                b'{{port}}', str(server_port).encode()
+                ).replace(
+                    b'{{host}}', pac_host.encode())
             PAC_RESP = (
                 'HTTP/1.1 200 OK\r\n'
                 'Content-Type: application/x-ns-proxy-autoconfig\r\n'
-                f'Content-Length: {len(pac_file)}\r\n\r\n'.encode('iso-8859-1')
+                f'Content-Length: {len(pac_file)}\r\n\r\n'.encode()
                 + pac_file
             )
-            print('PAC is ready.')
+            print(f'PAC URL: http://{server_host}:{server_port}/proxy.pac')
     except Exception as e:
         print(
             f'Failed to generate PAC response due to {repr(e)}.',
@@ -295,34 +303,28 @@ def generate_pac_resp(server_port):
         )
         PAC_RESP = b'HTTP/1.1 404 Not Found\r\n\r\n'
 
-async def main(server_host=None, server_port=None, proxy_type=None):
-    print(f'Slynk v{__version__} - A local relay to protect HTTPS connections')
+async def main():
+    print(f'Slynk v{__version__}')
+    parse_args()
 
-    doh = False
+    server_host = CONFIG.get('server_host')
+    if server_host is None:
+        raise ValueError('Server host not specified')
 
-    global PAC_HOST
-    server_host = server_host or CONFIG.get('server_host') or '0.0.0.0'
-    if server_host == '127.0.0.1':
-        PAC_HOST = server_host
-    else:
-        PAC_HOST = CONFIG.get('pac_host') or utils.get_lan_ip()
-        if not PAC_HOST:
-            raise RuntimeError('Failed to get PAC host')
-
-    server_port = server_port or CONFIG.get('server_port') or 3500
+    server_port = CONFIG.get('server_port')
     if server_port is None:
         raise ValueError('Server port not specified')
     if server_port < 0 or server_port > 65535:
         raise ValueError(f'Port {server_port} is invalid')
 
-    proxy_type = proxy_type or CONFIG.get('proxy_type')
-    if proxy_type == 'http':
-        generate_pac_resp(server_port)
+    proxy_protocol = CONFIG.get('proxy_protocol')
+    if proxy_protocol == 'http':
+        generate_pac_resp(server_host, server_port)
         handler = http_handler
-    elif proxy_type == 'socks5':
+    elif proxy_protocol == 'socks5':
         handler = socks5_handler
-    elif proxy_type is None:
-        raise ValueError('Proxy type not specified')
+    elif proxy_protocol is None:
+        raise ValueError('Proxy protocol not specified')
     else:
         raise ValueError(f'Unknown proxy type: {proxy_type}')
 
@@ -331,11 +333,12 @@ async def main(server_host=None, server_port=None, proxy_type=None):
         doh = True
         from . import doh_extension
         resolver = doh_extension.ProxiedDoHClient(
-            CONFIG['DNS_URL'], proxy_type, '127.0.0.1', server_port
+            CONFIG['DNS_URL'], proxy_protocol, '127.0.0.1', server_port
         )
         await resolver.init_session()
         dns_query = resolver.resolve
     else:
+        doh = False
         import dns.asyncresolver, dns.nameserver
         address, port = CONFIG['DNS_URL'].split(':')
         resolver = dns.asyncresolver.Resolver(configure=False)
@@ -348,14 +351,13 @@ async def main(server_host=None, server_port=None, proxy_type=None):
     print('DNS client is ready.')
 
     init_cache()
-    server = await asyncio.start_server(handler, server_host, server_port)
-    print(f"Ready at {proxy_type}://{server_host}:{server_port}")
-
     try:
+        server = await asyncio.start_server(handler, server_host, server_port)
+        print(f"Serving on {proxy_protocol}://{server_host}:{server_port}")
         async with server:
             await server.serve_forever()
     finally:
         if doh:
             await resolver.close_session()
         save_cache()
-        print('Exited.')
+        print('Server exited gracefully.')

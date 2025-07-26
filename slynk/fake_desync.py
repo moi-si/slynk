@@ -10,7 +10,6 @@ from . import remote
 
 logger = logger.getChild("fake_desync")
 system = platform.system()
-semaphore = threading.Semaphore(CONFIG.get('TransmitFileLimit') or 2)
 
 if system == "Windows":
 

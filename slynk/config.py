@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import random
 import time
+import argparse
 
 from . import trie_utils
 from .utils import ip_to_binary_prefix, get_lan_ip, expand_pattern
@@ -128,3 +129,19 @@ def save_cache():
     if old_TTL_cache != TTL_cache:
         write_TTL_cache()
         print('TTL cache saved.')
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Command-line options for slynk '
+        '(override config.json settings).')
+    parser.add_argument(
+        '--host', type=str, metavar='host',default=None, help='Server host')
+    parser.add_argument(
+        '--port', type=int, metavar='port',default=None, help='Server port')
+    parser.add_argument(
+        '--protocol', type=str, metavar='protocol', default=None,
+        help='Proxy protocol (HTTP or SOCKS5)')
+    args = parser.parse_args()
+    CONFIG['server_host'] = args.host or CONFIG.get('server_host') or '127.0.0.1'
+    CONFIG['server_port'] = args.port or CONFIG.get('server_port') or 3500
+    CONFIG['proxy_protocol'] = args.protocol or CONFIG.get('proxy_protocol')
